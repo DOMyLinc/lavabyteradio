@@ -454,5 +454,108 @@ export async function registerRoutes(
     }
   });
 
+  // =====================
+  // MEMBER AUTH ROUTES
+  // =====================
+
+  // Register new member
+  app.post("/api/members/register", async (req, res) => {
+    try {
+      const { email, password, displayName } = req.body;
+      
+      if (!email || !password) {
+        return res.status(400).json({ error: "Email and password required" });
+      }
+
+      // Check if email already exists
+      const existing = await storage.getMemberByEmail(email);
+      if (existing) {
+        return res.status(400).json({ error: "Email already registered" });
+      }
+
+      // Simple password hash (for testing - use bcrypt in production)
+      const passwordHash = Buffer.from(password).toString("base64");
+      const verificationToken = Math.random().toString(36).substring(2, 15);
+      const verificationExpires = new Date(Date.now() + 24 * 60 * 60 * 1000);
+
+      const member = await storage.createMember({
+        email,
+        passwordHash,
+        displayName: displayName || email.split("@")[0],
+        verificationToken,
+        verificationExpires,
+      });
+
+      // In a real app, send verification email here
+      console.log(`Verification link: /api/members/verify?token=${verificationToken}`);
+
+      res.status(201).json({ 
+        message: "Account created. Check your email for verification.",
+        id: member.id,
+        email: member.email 
+      });
+    } catch (error) {
+      console.error("Failed to register member:", error);
+      res.status(500).json({ error: "Failed to create account" });
+    }
+  });
+
+  // Login member
+  app.post("/api/members/login", async (req, res) => {
+    try {
+      const { email, password } = req.body;
+      
+      if (!email || !password) {
+        return res.status(400).json({ error: "Email and password required" });
+      }
+
+      const member = await storage.getMemberByEmail(email);
+      if (!member) {
+        return res.status(401).json({ error: "Invalid email or password" });
+      }
+
+      // Simple password check (for testing)
+      const passwordHash = Buffer.from(password).toString("base64");
+      if (member.passwordHash !== passwordHash) {
+        return res.status(401).json({ error: "Invalid email or password" });
+      }
+
+      res.json({ 
+        message: "Login successful",
+        member: {
+          id: member.id,
+          email: member.email,
+          displayName: member.displayName,
+          isPremium: member.isPremium,
+          isVerified: member.isVerified
+        }
+      });
+    } catch (error) {
+      console.error("Failed to login:", error);
+      res.status(500).json({ error: "Login failed" });
+    }
+  });
+
+  // Verify email
+  app.get("/api/members/verify", async (req, res) => {
+    try {
+      const { token } = req.query;
+      
+      if (!token || typeof token !== "string") {
+        return res.status(400).json({ error: "Invalid verification token" });
+      }
+
+      const member = await storage.verifyMember(token);
+      if (!member) {
+        return res.status(400).json({ error: "Invalid or expired verification token" });
+      }
+
+      res.json({ message: "Email verified successfully" });
+    } catch (error) {
+      console.error("Failed to verify email:", error);
+      res.status(500).json({ error: "Verification failed" });
+    }
+  });
+
   return httpServer;
 }
