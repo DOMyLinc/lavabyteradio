@@ -1,8 +1,7 @@
-const CACHE_NAME = 'lava-radio-v1';
-const AUDIO_CACHE_NAME = 'lava-radio-audio-v1';
+const CACHE_NAME = 'lava-radio-v2';
+const AUDIO_CACHE_NAME = 'lava-radio-audio-v2';
 
 const STATIC_ASSETS = [
-  '/',
   '/manifest.json',
   '/favicon.png'
 ];
