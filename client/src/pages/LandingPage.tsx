@@ -8,7 +8,7 @@ import { Badge } from "@/components/ui/badge";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { LavaBackground } from "@/components/LavaBackground";
-import { Play, Radio, Headphones, Smartphone, Monitor, Crown, Users, Music, Zap, Check, ArrowRight, Mail, Lock, User } from "lucide-react";
+import { Play, Radio, Headphones, Smartphone, Monitor, Crown, Users, Music, Zap, Check, ArrowRight, Mail, Lock, User, Shield } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { useMutation } from "@tanstack/react-query";
 import { apiRequest } from "@/lib/queryClient";
@@ -18,6 +18,8 @@ export default function LandingPage() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [displayName, setDisplayName] = useState("");
+  const [adminEmail, setAdminEmail] = useState("");
+  const [adminPassword, setAdminPassword] = useState("");
   const [isLoginOpen, setIsLoginOpen] = useState(false);
   const { toast } = useToast();
 
@@ -64,6 +66,30 @@ export default function LandingPage() {
     },
   });
 
+  const adminLoginMutation = useMutation({
+    mutationFn: async (data: { email: string; password: string }) => {
+      const res = await apiRequest("POST", "/api/admin/login", data);
+      return res.json();
+    },
+    onSuccess: () => {
+      toast({
+        title: "Admin access granted",
+        description: "Redirecting to admin panel...",
+      });
+      setIsLoginOpen(false);
+      setAdminEmail("");
+      setAdminPassword("");
+      window.location.href = "/admin";
+    },
+    onError: (error: Error) => {
+      toast({
+        title: "Admin login failed",
+        description: error.message,
+        variant: "destructive",
+      });
+    },
+  });
+
   const features = [
     { icon: Radio, title: "Live Radio Streams", description: "Access curated internet radio stations from around the world" },
     { icon: Music, title: "Custom Stations", description: "Premium members can create and share their own radio stations" },
@@ -103,9 +129,10 @@ export default function LandingPage() {
                 <DialogDescription>Join our community of audio enthusiasts</DialogDescription>
               </DialogHeader>
               <Tabs defaultValue="login" className="w-full">
-                <TabsList className="grid w-full grid-cols-2">
+                <TabsList className="grid w-full grid-cols-3">
                   <TabsTrigger value="login" data-testid="tab-login">Sign In</TabsTrigger>
                   <TabsTrigger value="register" data-testid="tab-register">Sign Up</TabsTrigger>
+                  <TabsTrigger value="admin" data-testid="tab-admin">Admin</TabsTrigger>
                 </TabsList>
                 <TabsContent value="login" className="space-y-4">
                   <div className="space-y-2">
@@ -152,6 +179,29 @@ export default function LandingPage() {
                     {registerMutation.isPending ? "Creating account..." : "Create Account"}
                   </Button>
                   <p className="text-xs text-muted-foreground text-center">We'll send a verification email to confirm your account</p>
+                </TabsContent>
+                <TabsContent value="admin" className="space-y-4">
+                  <div className="flex items-center justify-center gap-2 text-muted-foreground mb-2">
+                    <Shield className="w-5 h-5" />
+                    <span className="text-sm">Admin Access</span>
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="admin-email">Admin Email</Label>
+                    <div className="relative">
+                      <Mail className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+                      <Input id="admin-email" type="email" placeholder="admin@example.com" className="pl-10" value={adminEmail} onChange={(e) => setAdminEmail(e.target.value)} data-testid="input-admin-email" />
+                    </div>
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="admin-password">Admin Password</Label>
+                    <div className="relative">
+                      <Lock className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+                      <Input id="admin-password" type="password" placeholder="Your admin password" className="pl-10" value={adminPassword} onChange={(e) => setAdminPassword(e.target.value)} data-testid="input-admin-password" />
+                    </div>
+                  </div>
+                  <Button className="w-full" onClick={() => adminLoginMutation.mutate({ email: adminEmail, password: adminPassword })} disabled={adminLoginMutation.isPending} data-testid="button-submit-admin-login">
+                    {adminLoginMutation.isPending ? "Signing in..." : "Admin Sign In"}
+                  </Button>
                 </TabsContent>
               </Tabs>
             </DialogContent>

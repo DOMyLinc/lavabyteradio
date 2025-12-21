@@ -496,7 +496,7 @@ function AdCampaignsManager() {
               <div className="flex items-center justify-between gap-4 flex-wrap">
                 <div className="min-w-0">
                   <div className="font-medium truncate">{campaign.name}</div>
-                  <div className="text-sm text-muted-foreground truncate">{campaign.advertiserName}</div>
+                  <div className="text-sm text-muted-foreground truncate">{campaign.targetUrl}</div>
                 </div>
                 <div className="flex items-center gap-2">
                   <Badge variant={campaign.isActive ? "default" : "secondary"}>
@@ -543,14 +543,13 @@ function AdCampaignsManager() {
 
 function CampaignForm({ campaign, onSave, isPending }: { campaign?: AdCampaign; onSave: (data: Partial<AdCampaign>) => void; isPending: boolean }) {
   const [name, setName] = useState(campaign?.name || "");
-  const [advertiserName, setAdvertiserName] = useState(campaign?.advertiserName || "");
   const [imageUrl, setImageUrl] = useState(campaign?.imageUrl || "");
-  const [clickUrl, setClickUrl] = useState(campaign?.clickUrl || "");
+  const [targetUrl, setTargetUrl] = useState(campaign?.targetUrl || "");
   const [isActive, setIsActive] = useState(campaign?.isActive ?? true);
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    onSave({ name, advertiserName, imageUrl, clickUrl, isActive });
+    onSave({ name, imageUrl, targetUrl, isActive });
   };
 
   return (
@@ -560,16 +559,12 @@ function CampaignForm({ campaign, onSave, isPending }: { campaign?: AdCampaign; 
         <Input value={name} onChange={(e) => setName(e.target.value)} required data-testid="input-campaign-name" />
       </div>
       <div className="space-y-2">
-        <Label>Advertiser Name</Label>
-        <Input value={advertiserName} onChange={(e) => setAdvertiserName(e.target.value)} required data-testid="input-campaign-advertiser" />
-      </div>
-      <div className="space-y-2">
         <Label>Image URL</Label>
-        <Input value={imageUrl} onChange={(e) => setImageUrl(e.target.value)} data-testid="input-campaign-image" />
+        <Input value={imageUrl} onChange={(e) => setImageUrl(e.target.value)} required data-testid="input-campaign-image" />
       </div>
       <div className="space-y-2">
-        <Label>Click URL</Label>
-        <Input value={clickUrl} onChange={(e) => setClickUrl(e.target.value)} data-testid="input-campaign-click-url" />
+        <Label>Target URL</Label>
+        <Input value={targetUrl} onChange={(e) => setTargetUrl(e.target.value)} required data-testid="input-campaign-target-url" />
       </div>
       <div className="flex items-center gap-2">
         <Switch checked={isActive} onCheckedChange={setIsActive} data-testid="switch-campaign-active" />

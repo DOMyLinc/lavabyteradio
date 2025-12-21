@@ -10,7 +10,7 @@ export type UnifiedStation =
   | (Station & { type: "external" })
   | (UserStation & { type: "user" });
 
-export default function RadioPlayer() {
+export default function PublicPlayer() {
   const { data: externalStations = [], isLoading: loadingExternal, error: errorExternal } = useQuery<Station[]>({
     queryKey: ["/api/stations"],
   });
@@ -22,7 +22,6 @@ export default function RadioPlayer() {
   const isLoading = loadingExternal || loadingUser;
   const error = errorExternal || errorUser;
   
-  // Combine stations into a unified list
   const stations: UnifiedStation[] = [
     ...externalStations.filter(s => s.isActive).map(s => ({ ...s, type: "external" as const })),
     ...userStations.filter(s => s.isActive).map(s => ({ ...s, type: "user" as const })),
@@ -59,13 +58,6 @@ export default function RadioPlayer() {
             data-testid="home-link"
           >
             Home
-          </a>
-          <a
-            href="/admin"
-            className="text-xs text-muted-foreground hover:text-foreground transition-colors"
-            data-testid="admin-link"
-          >
-            Admin
           </a>
         </div>
       </header>
