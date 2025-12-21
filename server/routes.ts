@@ -1,4 +1,4 @@
-import type { Express } from "express";
+import type { Express, Request, Response, NextFunction } from "express";
 import { createServer, type Server } from "http";
 import { storage } from "./storage";
 import { isAuthenticated } from "./replit_integrations/auth";
@@ -7,9 +7,24 @@ import {
   insertUserStationSchema, updateUserStationSchema,
   insertStationTrackSchema, updateStationTrackSchema,
   insertAdCampaignSchema, updateAdCampaignSchema,
-  insertPlaybackHistorySchema
+  insertPlaybackHistorySchema,
+  insertAdminUserSchema, updateAdminUserSchema,
+  type AdminUser
 } from "@shared/schema";
 import { z } from "zod";
+
+declare module "express-session" {
+  interface SessionData {
+    adminId?: number;
+  }
+}
+
+function isAdminAuthenticated(req: Request, res: Response, next: NextFunction) {
+  if (!req.session?.adminId) {
+    return res.status(401).json({ error: "Admin authentication required" });
+  }
+  next();
+}
 
 export async function registerRoutes(
   httpServer: Server,
@@ -46,8 +61,8 @@ export async function registerRoutes(
     }
   });
 
-  // Create station (protected)
-  app.post("/api/stations", isAuthenticated, async (req, res) => {
+  // Create station (protected - admin only)
+  app.post("/api/stations", isAdminAuthenticated, async (req, res) => {
     try {
       const parsed = insertStationSchema.safeParse(req.body);
       if (!parsed.success) {
@@ -62,8 +77,8 @@ export async function registerRoutes(
     }
   });
 
-  // Update station (protected)
-  app.patch("/api/stations/:id", isAuthenticated, async (req, res) => {
+  // Update station (protected - admin only)
+  app.patch("/api/stations/:id", isAdminAuthenticated, async (req, res) => {
     try {
       const id = parseInt(req.params.id);
       if (isNaN(id)) {
@@ -86,8 +101,8 @@ export async function registerRoutes(
     }
   });
 
-  // Delete station (protected)
-  app.delete("/api/stations/:id", isAuthenticated, async (req, res) => {
+  // Delete station (protected - admin only)
+  app.delete("/api/stations/:id", isAdminAuthenticated, async (req, res) => {
     try {
       const id = parseInt(req.params.id);
       if (isNaN(id)) {
@@ -139,8 +154,8 @@ export async function registerRoutes(
     }
   });
 
-  // Create user station (protected)
-  app.post("/api/user-stations", isAuthenticated, async (req, res) => {
+  // Create user station (protected - admin only)
+  app.post("/api/user-stations", isAdminAuthenticated, async (req, res) => {
     try {
       const parsed = insertUserStationSchema.safeParse(req.body);
       if (!parsed.success) {
@@ -155,8 +170,8 @@ export async function registerRoutes(
     }
   });
 
-  // Update user station (protected)
-  app.patch("/api/user-stations/:id", isAuthenticated, async (req, res) => {
+  // Update user station (protected - admin only)
+  app.patch("/api/user-stations/:id", isAdminAuthenticated, async (req, res) => {
     try {
       const id = parseInt(req.params.id);
       if (isNaN(id)) {
@@ -179,8 +194,8 @@ export async function registerRoutes(
     }
   });
 
-  // Delete user station (protected)
-  app.delete("/api/user-stations/:id", isAuthenticated, async (req, res) => {
+  // Delete user station (protected - admin only)
+  app.delete("/api/user-stations/:id", isAdminAuthenticated, async (req, res) => {
     try {
       const id = parseInt(req.params.id);
       if (isNaN(id)) {
@@ -237,8 +252,8 @@ export async function registerRoutes(
     }
   });
 
-  // Create track for a station (protected)
-  app.post("/api/user-stations/:stationId/tracks", isAuthenticated, async (req, res) => {
+  // Create track for a station (protected - admin only)
+  app.post("/api/user-stations/:stationId/tracks", isAdminAuthenticated, async (req, res) => {
     try {
       const stationId = parseInt(req.params.stationId);
       if (isNaN(stationId)) {
@@ -264,8 +279,8 @@ export async function registerRoutes(
     }
   });
 
-  // Update track (protected)
-  app.patch("/api/tracks/:id", isAuthenticated, async (req, res) => {
+  // Update track (protected - admin only)
+  app.patch("/api/tracks/:id", isAdminAuthenticated, async (req, res) => {
     try {
       const id = parseInt(req.params.id);
       if (isNaN(id)) {
@@ -288,8 +303,8 @@ export async function registerRoutes(
     }
   });
 
-  // Delete track (protected)
-  app.delete("/api/tracks/:id", isAuthenticated, async (req, res) => {
+  // Delete track (protected - admin only)
+  app.delete("/api/tracks/:id", isAdminAuthenticated, async (req, res) => {
     try {
       const id = parseInt(req.params.id);
       if (isNaN(id)) {
@@ -352,8 +367,8 @@ export async function registerRoutes(
     }
   });
 
-  // Create ad campaign (protected)
-  app.post("/api/ad-campaigns", isAuthenticated, async (req, res) => {
+  // Create ad campaign (protected - admin only)
+  app.post("/api/ad-campaigns", isAdminAuthenticated, async (req, res) => {
     try {
       const parsed = insertAdCampaignSchema.safeParse(req.body);
       if (!parsed.success) {
@@ -368,8 +383,8 @@ export async function registerRoutes(
     }
   });
 
-  // Update ad campaign (protected)
-  app.patch("/api/ad-campaigns/:id", isAuthenticated, async (req, res) => {
+  // Update ad campaign (protected - admin only)
+  app.patch("/api/ad-campaigns/:id", isAdminAuthenticated, async (req, res) => {
     try {
       const id = parseInt(req.params.id);
       if (isNaN(id)) {
@@ -392,8 +407,8 @@ export async function registerRoutes(
     }
   });
 
-  // Delete ad campaign (protected)
-  app.delete("/api/ad-campaigns/:id", isAuthenticated, async (req, res) => {
+  // Delete ad campaign (protected - admin only)
+  app.delete("/api/ad-campaigns/:id", isAdminAuthenticated, async (req, res) => {
     try {
       const id = parseInt(req.params.id);
       if (isNaN(id)) {
@@ -554,6 +569,218 @@ export async function registerRoutes(
     } catch (error) {
       console.error("Failed to verify email:", error);
       res.status(500).json({ error: "Verification failed" });
+    }
+  });
+
+  // =====================
+  // ADMIN AUTH ROUTES
+  // =====================
+
+  // Admin login
+  app.post("/api/admin/login", async (req, res) => {
+    try {
+      const { email, password } = req.body;
+      
+      if (!email || !password) {
+        return res.status(400).json({ error: "Email and password required" });
+      }
+
+      const admin = await storage.getAdminUserByEmail(email);
+      if (!admin || !admin.isActive) {
+        return res.status(401).json({ error: "Invalid email or password" });
+      }
+
+      const passwordHash = Buffer.from(password).toString("base64");
+      if (admin.passwordHash !== passwordHash) {
+        return res.status(401).json({ error: "Invalid email or password" });
+      }
+
+      req.session.adminId = admin.id;
+      await storage.updateAdminLastLogin(admin.id);
+
+      res.json({ 
+        id: admin.id,
+        email: admin.email,
+        displayName: admin.displayName,
+        role: admin.role,
+        permissions: admin.permissions
+      });
+    } catch (error) {
+      console.error("Admin login failed:", error);
+      res.status(500).json({ error: "Login failed" });
+    }
+  });
+
+  // Admin logout
+  app.post("/api/admin/logout", (req, res) => {
+    req.session.destroy((err) => {
+      if (err) {
+        return res.status(500).json({ error: "Logout failed" });
+      }
+      res.json({ message: "Logged out successfully" });
+    });
+  });
+
+  // Get current admin session
+  app.get("/api/admin/me", async (req, res) => {
+    try {
+      if (!req.session?.adminId) {
+        return res.status(401).json({ error: "Not authenticated" });
+      }
+
+      const admin = await storage.getAdminUser(req.session.adminId);
+      if (!admin || !admin.isActive) {
+        req.session.destroy(() => {});
+        return res.status(401).json({ error: "Session invalid" });
+      }
+
+      res.json({ 
+        id: admin.id,
+        email: admin.email,
+        displayName: admin.displayName,
+        role: admin.role,
+        permissions: admin.permissions
+      });
+    } catch (error) {
+      console.error("Failed to get admin session:", error);
+      res.status(500).json({ error: "Failed to get session" });
+    }
+  });
+
+  // =====================
+  // ADMIN USERS MANAGEMENT (super_admin only)
+  // =====================
+
+  // Get all admin users
+  app.get("/api/admin/users", isAdminAuthenticated, async (req, res) => {
+    try {
+      const currentAdmin = await storage.getAdminUser(req.session.adminId!);
+      if (!currentAdmin || currentAdmin.role !== "super_admin") {
+        return res.status(403).json({ error: "Super admin access required" });
+      }
+
+      const admins = await storage.getAllAdminUsers();
+      res.json(admins.map(a => ({
+        id: a.id,
+        email: a.email,
+        displayName: a.displayName,
+        role: a.role,
+        permissions: a.permissions,
+        isActive: a.isActive,
+        createdAt: a.createdAt,
+        lastLoginAt: a.lastLoginAt
+      })));
+    } catch (error) {
+      console.error("Failed to get admin users:", error);
+      res.status(500).json({ error: "Failed to get admin users" });
+    }
+  });
+
+  // Create admin user
+  app.post("/api/admin/users", isAdminAuthenticated, async (req, res) => {
+    try {
+      const currentAdmin = await storage.getAdminUser(req.session.adminId!);
+      if (!currentAdmin || currentAdmin.role !== "super_admin") {
+        return res.status(403).json({ error: "Super admin access required" });
+      }
+
+      const { email, password, displayName, role, permissions } = req.body;
+      
+      if (!email || !password) {
+        return res.status(400).json({ error: "Email and password required" });
+      }
+
+      const existing = await storage.getAdminUserByEmail(email);
+      if (existing) {
+        return res.status(400).json({ error: "Email already exists" });
+      }
+
+      const passwordHash = Buffer.from(password).toString("base64");
+      const admin = await storage.createAdminUser({
+        email,
+        passwordHash,
+        displayName: displayName || email.split("@")[0],
+        role: role || "admin",
+        permissions: permissions || ["stations", "user_stations", "tracks", "ads"],
+        isActive: true
+      });
+
+      res.status(201).json({
+        id: admin.id,
+        email: admin.email,
+        displayName: admin.displayName,
+        role: admin.role,
+        permissions: admin.permissions
+      });
+    } catch (error) {
+      console.error("Failed to create admin user:", error);
+      res.status(500).json({ error: "Failed to create admin user" });
+    }
+  });
+
+  // Update admin user
+  app.patch("/api/admin/users/:id", isAdminAuthenticated, async (req, res) => {
+    try {
+      const currentAdmin = await storage.getAdminUser(req.session.adminId!);
+      if (!currentAdmin || currentAdmin.role !== "super_admin") {
+        return res.status(403).json({ error: "Super admin access required" });
+      }
+
+      const id = parseInt(req.params.id);
+      if (isNaN(id)) {
+        return res.status(400).json({ error: "Invalid user ID" });
+      }
+
+      const { password, ...updateData } = req.body;
+      if (password) {
+        (updateData as any).passwordHash = Buffer.from(password).toString("base64");
+      }
+
+      const admin = await storage.updateAdminUser(id, updateData);
+      if (!admin) {
+        return res.status(404).json({ error: "Admin user not found" });
+      }
+
+      res.json({
+        id: admin.id,
+        email: admin.email,
+        displayName: admin.displayName,
+        role: admin.role,
+        permissions: admin.permissions,
+        isActive: admin.isActive
+      });
+    } catch (error) {
+      console.error("Failed to update admin user:", error);
+      res.status(500).json({ error: "Failed to update admin user" });
+    }
+  });
+
+  // Delete admin user
+  app.delete("/api/admin/users/:id", isAdminAuthenticated, async (req, res) => {
+    try {
+      const currentAdmin = await storage.getAdminUser(req.session.adminId!);
+      if (!currentAdmin || currentAdmin.role !== "super_admin") {
+        return res.status(403).json({ error: "Super admin access required" });
+      }
+
+      const id = parseInt(req.params.id);
+      if (isNaN(id)) {
+        return res.status(400).json({ error: "Invalid user ID" });
+      }
+
+      if (id === req.session.adminId) {
+        return res.status(400).json({ error: "Cannot delete your own account" });
+      }
+
+      const deleted = await storage.deleteAdminUser(id);
+      if (!deleted) {
+        return res.status(404).json({ error: "Admin user not found" });
+      }
+
+      res.status(204).send();
+    } catch (error) {
+      console.error("Failed to delete admin user:", error);
+      res.status(500).json({ error: "Failed to delete admin user" });
     }
   });
 

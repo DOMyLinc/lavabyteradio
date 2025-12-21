@@ -6,7 +6,8 @@ import {
   type AdCampaign, type InsertAdCampaign, type UpdateAdCampaign,
   type PlaybackHistory, type InsertPlaybackHistory,
   type Member,
-  users, stations, userStations, stationTracks, adCampaigns, playbackHistory, members
+  type AdminUser, type InsertAdminUser, type UpdateAdminUser,
+  users, stations, userStations, stationTracks, adCampaigns, playbackHistory, members, adminUsers
 } from "@shared/schema";
 import { db } from "./db";
 import { eq, asc, desc, and, lte, gte, or, isNull } from "drizzle-orm";
@@ -53,6 +54,15 @@ export interface IStorage {
   getMemberByEmail(email: string): Promise<Member | undefined>;
   createMember(data: { email: string; passwordHash: string; displayName?: string; verificationToken?: string; verificationExpires?: Date }): Promise<Member>;
   verifyMember(token: string): Promise<Member | undefined>;
+
+  // Admin users
+  getAdminUserByEmail(email: string): Promise<AdminUser | undefined>;
+  getAdminUser(id: number): Promise<AdminUser | undefined>;
+  getAllAdminUsers(): Promise<AdminUser[]>;
+  createAdminUser(data: InsertAdminUser): Promise<AdminUser>;
+  updateAdminUser(id: number, data: UpdateAdminUser): Promise<AdminUser | undefined>;
+  deleteAdminUser(id: number): Promise<boolean>;
+  updateAdminLastLogin(id: number): Promise<void>;
 }
 
 export class DatabaseStorage implements IStorage {
@@ -235,6 +245,46 @@ export class DatabaseStorage implements IStorage {
       .where(eq(members.id, member.id))
       .returning();
     return updated;
+  }
+
+  // Admin users
+  async getAdminUserByEmail(email: string): Promise<AdminUser | undefined> {
+    const [admin] = await db.select().from(adminUsers).where(eq(adminUsers.email, email));
+    return admin || undefined;
+  }
+
+  async getAdminUser(id: number): Promise<AdminUser | undefined> {
+    const [admin] = await db.select().from(adminUsers).where(eq(adminUsers.id, id));
+    return admin || undefined;
+  }
+
+  async getAllAdminUsers(): Promise<AdminUser[]> {
+    return db.select().from(adminUsers).orderBy(asc(adminUsers.createdAt));
+  }
+
+  async createAdminUser(data: InsertAdminUser): Promise<AdminUser> {
+    const [created] = await db.insert(adminUsers).values(data).returning();
+    return created;
+  }
+
+  async updateAdminUser(id: number, data: UpdateAdminUser): Promise<AdminUser | undefined> {
+    const [updated] = await db
+      .update(adminUsers)
+      .set(data)
+      .where(eq(adminUsers.id, id))
+      .returning();
+    return updated || undefined;
+  }
+
+  async deleteAdminUser(id: number): Promise<boolean> {
+    const result = await db.delete(adminUsers).where(eq(adminUsers.id, id)).returning();
+    return result.length > 0;
+  }
+
+  async updateAdminLastLogin(id: number): Promise<void> {
+    await db.update(adminUsers)
+      .set({ lastLoginAt: new Date() })
+      .where(eq(adminUsers.id, id));
   }
 }
 
