@@ -10,7 +10,9 @@ import { RecentlyPlayed } from "./RecentlyPlayed";
 import { AudioVisualizer } from "./AudioVisualizer";
 import { Equalizer } from "./Equalizer";
 import { ShareButton } from "./ShareButton";
+import { OfflineIndicator } from "./OfflineIndicator";
 import { useAudioProcessor } from "@/hooks/useAudioProcessor";
+import { useMediaSession, cacheAudioForOffline } from "@/hooks/useMediaSession";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import type { UnifiedStation } from "@/pages/RadioPlayer";
@@ -42,7 +44,7 @@ export function StereoUnit({ stations, isLoading }: StereoUnitProps) {
   
   const addToHistoryMutation = useMutation({
     mutationFn: async (entry: InsertPlaybackHistory) => {
-      return apiRequest<PlaybackHistory>("POST", "/api/history", entry);
+      return apiRequest("POST", "/api/history", entry);
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/history"] });
@@ -107,6 +109,8 @@ export function StereoUnit({ stations, isLoading }: StereoUnitProps) {
     const audio = audioRef.current;
     audio.crossOrigin = "anonymous";
     audio.src = track.mediaUrl;
+    
+    cacheAudioForOffline(track.mediaUrl);
     
     try {
       await audio.play();
@@ -457,9 +461,23 @@ export function StereoUnit({ stations, isLoading }: StereoUnitProps) {
     }
   }, [isPoweredOn, stations, currentStation, isPlaying, playStation]);
 
+  useMediaSession({
+    title: currentTrack?.title || currentStation?.name || "Lava Bytes Radio",
+    artist: currentTrack?.artist ?? (currentStation?.type === "external" ? (currentStation.genre ?? undefined) : undefined),
+    album: currentStation?.name || "Lava Bytes Radio",
+    artwork: currentStation?.logoUrl ?? undefined,
+    isPlaying,
+    onPlay: handlePlayToggle,
+    onPause: handlePlayToggle,
+    onPreviousTrack: handlePrevStation,
+    onNextTrack: handleNextStation,
+  });
+
   const activeStations = stations.filter((s) => s.isActive);
 
   return (
+    <>
+      <OfflineIndicator />
     <div className="w-full max-w-4xl mx-auto px-4">
       <div
         className="relative rounded-lg overflow-hidden"
@@ -753,5 +771,6 @@ export function StereoUnit({ stations, isLoading }: StereoUnitProps) {
         isOpen={isStationListOpen}
       />
     </div>
+    </>
   );
 }

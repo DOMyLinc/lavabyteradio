@@ -1,6 +1,7 @@
 import type { Express } from "express";
 import { createServer, type Server } from "http";
 import { storage } from "./storage";
+import { isAuthenticated } from "./replit_integrations/auth";
 import { 
   insertStationSchema, updateStationSchema,
   insertUserStationSchema, updateUserStationSchema,
@@ -45,8 +46,8 @@ export async function registerRoutes(
     }
   });
 
-  // Create station
-  app.post("/api/stations", async (req, res) => {
+  // Create station (protected)
+  app.post("/api/stations", isAuthenticated, async (req, res) => {
     try {
       const parsed = insertStationSchema.safeParse(req.body);
       if (!parsed.success) {
@@ -61,8 +62,8 @@ export async function registerRoutes(
     }
   });
 
-  // Update station
-  app.patch("/api/stations/:id", async (req, res) => {
+  // Update station (protected)
+  app.patch("/api/stations/:id", isAuthenticated, async (req, res) => {
     try {
       const id = parseInt(req.params.id);
       if (isNaN(id)) {
@@ -85,8 +86,8 @@ export async function registerRoutes(
     }
   });
 
-  // Delete station
-  app.delete("/api/stations/:id", async (req, res) => {
+  // Delete station (protected)
+  app.delete("/api/stations/:id", isAuthenticated, async (req, res) => {
     try {
       const id = parseInt(req.params.id);
       if (isNaN(id)) {
@@ -138,8 +139,8 @@ export async function registerRoutes(
     }
   });
 
-  // Create user station
-  app.post("/api/user-stations", async (req, res) => {
+  // Create user station (protected)
+  app.post("/api/user-stations", isAuthenticated, async (req, res) => {
     try {
       const parsed = insertUserStationSchema.safeParse(req.body);
       if (!parsed.success) {
@@ -154,8 +155,8 @@ export async function registerRoutes(
     }
   });
 
-  // Update user station
-  app.patch("/api/user-stations/:id", async (req, res) => {
+  // Update user station (protected)
+  app.patch("/api/user-stations/:id", isAuthenticated, async (req, res) => {
     try {
       const id = parseInt(req.params.id);
       if (isNaN(id)) {
@@ -178,8 +179,8 @@ export async function registerRoutes(
     }
   });
 
-  // Delete user station
-  app.delete("/api/user-stations/:id", async (req, res) => {
+  // Delete user station (protected)
+  app.delete("/api/user-stations/:id", isAuthenticated, async (req, res) => {
     try {
       const id = parseInt(req.params.id);
       if (isNaN(id)) {
@@ -236,8 +237,8 @@ export async function registerRoutes(
     }
   });
 
-  // Create track for a station
-  app.post("/api/user-stations/:stationId/tracks", async (req, res) => {
+  // Create track for a station (protected)
+  app.post("/api/user-stations/:stationId/tracks", isAuthenticated, async (req, res) => {
     try {
       const stationId = parseInt(req.params.stationId);
       if (isNaN(stationId)) {
@@ -263,8 +264,8 @@ export async function registerRoutes(
     }
   });
 
-  // Update track
-  app.patch("/api/tracks/:id", async (req, res) => {
+  // Update track (protected)
+  app.patch("/api/tracks/:id", isAuthenticated, async (req, res) => {
     try {
       const id = parseInt(req.params.id);
       if (isNaN(id)) {
@@ -287,8 +288,8 @@ export async function registerRoutes(
     }
   });
 
-  // Delete track
-  app.delete("/api/tracks/:id", async (req, res) => {
+  // Delete track (protected)
+  app.delete("/api/tracks/:id", isAuthenticated, async (req, res) => {
     try {
       const id = parseInt(req.params.id);
       if (isNaN(id)) {
@@ -351,8 +352,8 @@ export async function registerRoutes(
     }
   });
 
-  // Create ad campaign
-  app.post("/api/ad-campaigns", async (req, res) => {
+  // Create ad campaign (protected)
+  app.post("/api/ad-campaigns", isAuthenticated, async (req, res) => {
     try {
       const parsed = insertAdCampaignSchema.safeParse(req.body);
       if (!parsed.success) {
@@ -367,8 +368,8 @@ export async function registerRoutes(
     }
   });
 
-  // Update ad campaign
-  app.patch("/api/ad-campaigns/:id", async (req, res) => {
+  // Update ad campaign (protected)
+  app.patch("/api/ad-campaigns/:id", isAuthenticated, async (req, res) => {
     try {
       const id = parseInt(req.params.id);
       if (isNaN(id)) {
@@ -391,8 +392,8 @@ export async function registerRoutes(
     }
   });
 
-  // Delete ad campaign
-  app.delete("/api/ad-campaigns/:id", async (req, res) => {
+  // Delete ad campaign (protected)
+  app.delete("/api/ad-campaigns/:id", isAuthenticated, async (req, res) => {
     try {
       const id = parseInt(req.params.id);
       if (isNaN(id)) {
