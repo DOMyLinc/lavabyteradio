@@ -2,7 +2,7 @@ import { X, Radio, Music, ChevronRight, ListMusic } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Badge } from "@/components/ui/badge";
-import type { UnifiedStation } from "@/pages/RadioPlayer";
+import type { UnifiedStation } from "@/pages/PublicPlayer";
 
 interface StationListProps {
   stations: UnifiedStation[];

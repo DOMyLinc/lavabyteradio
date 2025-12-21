@@ -1,6 +1,6 @@
 import { RefObject } from "react";
 import { Radio, Music, Play, Pause, Video, ListMusic } from "lucide-react";
-import type { UnifiedStation } from "@/pages/RadioPlayer";
+import type { UnifiedStation } from "@/pages/PublicPlayer";
 import type { StationTrack } from "@shared/schema";
 
 interface NowPlayingProps {

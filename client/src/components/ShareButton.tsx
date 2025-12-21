@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { Share2, Copy, Check, Twitter, Facebook, Link2 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
-import type { UnifiedStation } from "@/pages/RadioPlayer";
+import type { UnifiedStation } from "@/pages/PublicPlayer";
 
 interface ShareButtonProps {
   station: UnifiedStation | null;

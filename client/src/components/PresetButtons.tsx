@@ -1,4 +1,4 @@
-import type { UnifiedStation } from "@/pages/RadioPlayer";
+import type { UnifiedStation } from "@/pages/PublicPlayer";
 
 interface PresetButtonsProps {
   stations: UnifiedStation[];
