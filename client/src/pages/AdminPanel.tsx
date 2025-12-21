@@ -1,7 +1,8 @@
 import { useState } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { Link } from "wouter";
-import { Plus, Pencil, Trash2, Radio, ArrowLeft, GripVertical, Loader2, Music, Megaphone, ListMusic } from "lucide-react";
+import { Plus, Pencil, Trash2, Radio, ArrowLeft, GripVertical, Loader2, Music, Megaphone, ListMusic, Upload, Link as LinkIcon } from "lucide-react";
+import { ObjectUploader } from "@/components/ObjectUploader";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -647,6 +648,8 @@ function TracksTab() {
   const [selectedStationId, setSelectedStationId] = useState<number | null>(null);
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [editingTrack, setEditingTrack] = useState<StationTrack | null>(null);
+  const [uploadMode, setUploadMode] = useState<"file" | "url">("file");
+  const [uploadedObjectPath, setUploadedObjectPath] = useState<string | null>(null);
   const [formData, setFormData] = useState<TrackFormData>({
     title: "",
     artist: "",
@@ -710,6 +713,8 @@ function TracksTab() {
 
   const openCreateDialog = () => {
     setEditingTrack(null);
+    setUploadMode("file");
+    setUploadedObjectPath(null);
     setFormData({
       title: "",
       artist: "",
@@ -723,6 +728,8 @@ function TracksTab() {
 
   const openEditDialog = (track: StationTrack) => {
     setEditingTrack(track);
+    setUploadMode("url");
+    setUploadedObjectPath(null);
     setFormData({
       title: track.title,
       artist: track.artist ?? "",
@@ -737,14 +744,22 @@ function TracksTab() {
   const closeDialog = () => {
     setIsDialogOpen(false);
     setEditingTrack(null);
+    setUploadedObjectPath(null);
   };
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
+    const finalMediaUrl = uploadMode === "file" && uploadedObjectPath ? uploadedObjectPath : formData.mediaUrl;
+    
+    if (!finalMediaUrl) {
+      toast({ title: "Please upload a file or enter a media URL", variant: "destructive" });
+      return;
+    }
+    
     if (editingTrack) {
-      updateMutation.mutate({ id: editingTrack.id, data: formData });
+      updateMutation.mutate({ id: editingTrack.id, data: { ...formData, mediaUrl: finalMediaUrl } });
     } else if (selectedStationId) {
-      createMutation.mutate({ ...formData, stationId: selectedStationId });
+      createMutation.mutate({ ...formData, mediaUrl: finalMediaUrl, stationId: selectedStationId });
     }
   };
 
@@ -863,9 +878,102 @@ function TracksTab() {
               <Label htmlFor="track-artist">Artist</Label>
               <Input id="track-artist" value={formData.artist ?? ""} onChange={(e) => setFormData({ ...formData, artist: e.target.value })} placeholder="e.g., The Band" data-testid="input-track-artist" />
             </div>
-            <div className="space-y-2">
-              <Label htmlFor="track-mediaUrl">Media URL *</Label>
-              <Input id="track-mediaUrl" value={formData.mediaUrl} onChange={(e) => setFormData({ ...formData, mediaUrl: e.target.value })} placeholder="https://storage.example.com/track.mp3" required data-testid="input-track-media-url" />
+            <div className="space-y-3">
+              <Label>Media Source *</Label>
+              <div className="flex gap-2">
+                <Button
+                  type="button"
+                  variant={uploadMode === "file" ? "default" : "outline"}
+                  size="sm"
+                  onClick={() => setUploadMode("file")}
+                  className="flex-1"
+                  data-testid="button-upload-mode-file"
+                >
+                  <Upload className="w-4 h-4 mr-2" />
+                  Upload File
+                </Button>
+                <Button
+                  type="button"
+                  variant={uploadMode === "url" ? "default" : "outline"}
+                  size="sm"
+                  onClick={() => setUploadMode("url")}
+                  className="flex-1"
+                  data-testid="button-upload-mode-url"
+                >
+                  <LinkIcon className="w-4 h-4 mr-2" />
+                  Enter URL
+                </Button>
+              </div>
+              
+              {uploadMode === "file" ? (
+                <div className="space-y-2">
+                  {uploadedObjectPath ? (
+                    <div className="flex items-center gap-2 p-3 bg-muted rounded-md">
+                      <Music className="w-5 h-5 text-green-500" />
+                      <span className="text-sm flex-1 truncate">File uploaded successfully</span>
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => setUploadedObjectPath(null)}
+                      >
+                        Change
+                      </Button>
+                    </div>
+                  ) : (
+                    <ObjectUploader
+                      maxNumberOfFiles={1}
+                      maxFileSize={104857600}
+                      onGetUploadParameters={async (file) => {
+                        const res = await fetch("/api/uploads/request-url", {
+                          method: "POST",
+                          headers: { "Content-Type": "application/json" },
+                          body: JSON.stringify({
+                            name: file.name,
+                            size: file.size,
+                            contentType: file.type,
+                          }),
+                        });
+                        const { uploadURL, objectPath } = await res.json();
+                        (file as any).__objectPath = objectPath;
+                        return {
+                          method: "PUT" as const,
+                          url: uploadURL,
+                          headers: { "Content-Type": file.type },
+                        };
+                      }}
+                      onComplete={(result) => {
+                        if (result.successful && result.successful.length > 0) {
+                          const file = result.successful[0];
+                          const objectPath = (file as any).__objectPath;
+                          if (objectPath) {
+                            setUploadedObjectPath(objectPath);
+                            toast({ title: "File uploaded successfully" });
+                          }
+                        }
+                        if (result.failed && result.failed.length > 0) {
+                          toast({ title: "Upload failed. Please try again.", variant: "destructive" });
+                        }
+                      }}
+                      buttonClassName="w-full"
+                    >
+                      <Upload className="w-4 h-4 mr-2" />
+                      Select Audio File
+                    </ObjectUploader>
+                  )}
+                  <p className="text-xs text-muted-foreground">
+                    Supports MP3, WAV, AAC, FLAC, and other audio formats (max 100MB)
+                  </p>
+                </div>
+              ) : (
+                <Input
+                  id="track-mediaUrl"
+                  value={formData.mediaUrl}
+                  onChange={(e) => setFormData({ ...formData, mediaUrl: e.target.value })}
+                  placeholder="https://storage.example.com/track.mp3"
+                  data-testid="input-track-media-url"
+                />
+              )}
             </div>
             <div className="grid grid-cols-2 gap-4">
               <div className="space-y-2">

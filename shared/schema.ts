@@ -48,6 +48,7 @@ export type Station = typeof stations.$inferSelect;
 // User-created radio stations (playlist-based)
 export const userStations = pgTable("user_stations", {
   id: integer("id").primaryKey().generatedAlwaysAsIdentity(),
+  ownerId: text("owner_id"), // For future user ownership - nullable for now
   name: text("name").notNull(),
   description: text("description"),
   logoUrl: text("logo_url"),

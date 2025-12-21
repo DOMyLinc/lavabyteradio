@@ -2,6 +2,7 @@ import express, { type Request, Response, NextFunction } from "express";
 import { registerRoutes } from "./routes";
 import { serveStatic } from "./static";
 import { createServer } from "http";
+import { registerObjectStorageRoutes } from "./replit_integrations/object_storage";
 
 const app = express();
 const httpServer = createServer(app);
@@ -64,6 +65,9 @@ import { seedStations } from "./seed";
 (async () => {
   // Seed test stations
   await seedStations();
+  
+  // Register object storage routes for file uploads
+  registerObjectStorageRoutes(app);
   
   await registerRoutes(httpServer, app);
 
