@@ -4,10 +4,11 @@ import {
   type UserStation, type InsertUserStation, type UpdateUserStation,
   type StationTrack, type InsertStationTrack, type UpdateStationTrack,
   type AdCampaign, type InsertAdCampaign, type UpdateAdCampaign,
-  users, stations, userStations, stationTracks, adCampaigns
+  type PlaybackHistory, type InsertPlaybackHistory,
+  users, stations, userStations, stationTracks, adCampaigns, playbackHistory
 } from "@shared/schema";
 import { db } from "./db";
-import { eq, asc, and, lte, gte, or, isNull } from "drizzle-orm";
+import { eq, asc, desc, and, lte, gte, or, isNull } from "drizzle-orm";
 
 export interface IStorage {
   getUser(id: string): Promise<User | undefined>;
@@ -41,6 +42,11 @@ export interface IStorage {
   createAdCampaign(campaign: InsertAdCampaign): Promise<AdCampaign>;
   updateAdCampaign(id: number, campaign: UpdateAdCampaign): Promise<AdCampaign | undefined>;
   deleteAdCampaign(id: number): Promise<boolean>;
+
+  // Playback history
+  getRecentHistory(limit?: number): Promise<PlaybackHistory[]>;
+  addToHistory(entry: InsertPlaybackHistory): Promise<PlaybackHistory>;
+  clearHistory(): Promise<void>;
 }
 
 export class DatabaseStorage implements IStorage {
@@ -184,6 +190,22 @@ export class DatabaseStorage implements IStorage {
   async deleteAdCampaign(id: number): Promise<boolean> {
     const result = await db.delete(adCampaigns).where(eq(adCampaigns.id, id)).returning();
     return result.length > 0;
+  }
+
+  // Playback history
+  async getRecentHistory(limit: number = 20): Promise<PlaybackHistory[]> {
+    return db.select().from(playbackHistory)
+      .orderBy(desc(playbackHistory.playedAt))
+      .limit(limit);
+  }
+
+  async addToHistory(entry: InsertPlaybackHistory): Promise<PlaybackHistory> {
+    const [created] = await db.insert(playbackHistory).values(entry).returning();
+    return created;
+  }
+
+  async clearHistory(): Promise<void> {
+    await db.delete(playbackHistory);
   }
 }
 

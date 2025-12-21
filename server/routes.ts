@@ -5,7 +5,8 @@ import {
   insertStationSchema, updateStationSchema,
   insertUserStationSchema, updateUserStationSchema,
   insertStationTrackSchema, updateStationTrackSchema,
-  insertAdCampaignSchema, updateAdCampaignSchema
+  insertAdCampaignSchema, updateAdCampaignSchema,
+  insertPlaybackHistorySchema
 } from "@shared/schema";
 import { z } from "zod";
 
@@ -406,6 +407,49 @@ export async function registerRoutes(
     } catch (error) {
       console.error("Failed to delete ad campaign:", error);
       res.status(500).json({ error: "Failed to delete ad campaign" });
+    }
+  });
+
+  // =====================
+  // PLAYBACK HISTORY ROUTES
+  // =====================
+
+  // Get recent playback history
+  app.get("/api/history", async (req, res) => {
+    try {
+      const limit = req.query.limit ? parseInt(req.query.limit as string) : 20;
+      const history = await storage.getRecentHistory(limit);
+      res.json(history);
+    } catch (error) {
+      console.error("Failed to fetch history:", error);
+      res.status(500).json({ error: "Failed to fetch playback history" });
+    }
+  });
+
+  // Add to playback history
+  app.post("/api/history", async (req, res) => {
+    try {
+      const parsed = insertPlaybackHistorySchema.safeParse(req.body);
+      if (!parsed.success) {
+        return res.status(400).json({ error: "Invalid history data", details: parsed.error.errors });
+      }
+      
+      const entry = await storage.addToHistory(parsed.data);
+      res.status(201).json(entry);
+    } catch (error) {
+      console.error("Failed to add to history:", error);
+      res.status(500).json({ error: "Failed to add to playback history" });
+    }
+  });
+
+  // Clear playback history
+  app.delete("/api/history", async (req, res) => {
+    try {
+      await storage.clearHistory();
+      res.status(204).send();
+    } catch (error) {
+      console.error("Failed to clear history:", error);
+      res.status(500).json({ error: "Failed to clear playback history" });
     }
   });
 

@@ -127,6 +127,27 @@ export type InsertAdCampaign = z.infer<typeof insertAdCampaignSchema>;
 export type UpdateAdCampaign = z.infer<typeof updateAdCampaignSchema>;
 export type AdCampaign = typeof adCampaigns.$inferSelect;
 
+// Playback history for recently played stations/tracks
+export const playbackHistory = pgTable("playback_history", {
+  id: integer("id").primaryKey().generatedAlwaysAsIdentity(),
+  stationId: integer("station_id"), // External station ID (null if user station)
+  userStationId: integer("user_station_id"), // User station ID (null if external)
+  trackId: integer("track_id"), // Track ID if playing a specific track
+  stationName: text("station_name").notNull(), // Snapshot of station name at play time
+  trackTitle: text("track_title"), // Snapshot of track title if applicable
+  trackArtist: text("track_artist"), // Snapshot of track artist if applicable
+  logoUrl: text("logo_url"), // Snapshot of logo URL
+  playedAt: timestamp("played_at").defaultNow().notNull(),
+});
+
+export const insertPlaybackHistorySchema = createInsertSchema(playbackHistory).omit({
+  id: true,
+  playedAt: true,
+});
+
+export type InsertPlaybackHistory = z.infer<typeof insertPlaybackHistorySchema>;
+export type PlaybackHistory = typeof playbackHistory.$inferSelect;
+
 // Relations
 export const stationsRelations = relations(stations, ({}) => ({}));
 
