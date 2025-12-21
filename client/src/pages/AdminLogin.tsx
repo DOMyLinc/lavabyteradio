@@ -55,7 +55,7 @@ export default function AdminLogin({ onLoginSuccess }: AdminLoginProps) {
   };
 
   return (
-    <div className="min-h-screen flex flex-col relative overflow-hidden">
+    <div className="min-h-screen flex flex-col relative overflow-hidden bg-background">
       <LavaBackground />
       
       <header className="relative z-10 p-4">
