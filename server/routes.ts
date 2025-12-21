@@ -1,12 +1,14 @@
 import type { Express } from "express";
 import { createServer, type Server } from "http";
 import { storage } from "./storage";
+import { isAuthenticated } from "./replit_integrations/auth";
 import { 
   insertStationSchema, updateStationSchema,
   insertUserStationSchema, updateUserStationSchema,
   insertStationTrackSchema, updateStationTrackSchema,
   insertAdCampaignSchema, updateAdCampaignSchema,
-  insertPlaybackHistorySchema
+  insertPlaybackHistorySchema,
+  insertAdminUserSchema, updateAdminUserSchema
 } from "@shared/schema";
 import { z } from "zod";
 
@@ -45,8 +47,8 @@ export async function registerRoutes(
     }
   });
 
-  // Create station
-  app.post("/api/stations", async (req, res) => {
+  // Create station (protected)
+  app.post("/api/stations", isAuthenticated, async (req, res) => {
     try {
       const parsed = insertStationSchema.safeParse(req.body);
       if (!parsed.success) {
@@ -61,8 +63,8 @@ export async function registerRoutes(
     }
   });
 
-  // Update station
-  app.patch("/api/stations/:id", async (req, res) => {
+  // Update station (protected)
+  app.patch("/api/stations/:id", isAuthenticated, async (req, res) => {
     try {
       const id = parseInt(req.params.id);
       if (isNaN(id)) {
@@ -85,8 +87,8 @@ export async function registerRoutes(
     }
   });
 
-  // Delete station
-  app.delete("/api/stations/:id", async (req, res) => {
+  // Delete station (protected)
+  app.delete("/api/stations/:id", isAuthenticated, async (req, res) => {
     try {
       const id = parseInt(req.params.id);
       if (isNaN(id)) {
@@ -138,8 +140,8 @@ export async function registerRoutes(
     }
   });
 
-  // Create user station
-  app.post("/api/user-stations", async (req, res) => {
+  // Create user station (protected)
+  app.post("/api/user-stations", isAuthenticated, async (req, res) => {
     try {
       const parsed = insertUserStationSchema.safeParse(req.body);
       if (!parsed.success) {
@@ -154,8 +156,8 @@ export async function registerRoutes(
     }
   });
 
-  // Update user station
-  app.patch("/api/user-stations/:id", async (req, res) => {
+  // Update user station (protected)
+  app.patch("/api/user-stations/:id", isAuthenticated, async (req, res) => {
     try {
       const id = parseInt(req.params.id);
       if (isNaN(id)) {
@@ -178,8 +180,8 @@ export async function registerRoutes(
     }
   });
 
-  // Delete user station
-  app.delete("/api/user-stations/:id", async (req, res) => {
+  // Delete user station (protected)
+  app.delete("/api/user-stations/:id", isAuthenticated, async (req, res) => {
     try {
       const id = parseInt(req.params.id);
       if (isNaN(id)) {
@@ -236,8 +238,8 @@ export async function registerRoutes(
     }
   });
 
-  // Create track for a station
-  app.post("/api/user-stations/:stationId/tracks", async (req, res) => {
+  // Create track for a station (protected)
+  app.post("/api/user-stations/:stationId/tracks", isAuthenticated, async (req, res) => {
     try {
       const stationId = parseInt(req.params.stationId);
       if (isNaN(stationId)) {
@@ -263,8 +265,8 @@ export async function registerRoutes(
     }
   });
 
-  // Update track
-  app.patch("/api/tracks/:id", async (req, res) => {
+  // Update track (protected)
+  app.patch("/api/tracks/:id", isAuthenticated, async (req, res) => {
     try {
       const id = parseInt(req.params.id);
       if (isNaN(id)) {
@@ -287,8 +289,8 @@ export async function registerRoutes(
     }
   });
 
-  // Delete track
-  app.delete("/api/tracks/:id", async (req, res) => {
+  // Delete track (protected)
+  app.delete("/api/tracks/:id", isAuthenticated, async (req, res) => {
     try {
       const id = parseInt(req.params.id);
       if (isNaN(id)) {
@@ -351,8 +353,8 @@ export async function registerRoutes(
     }
   });
 
-  // Create ad campaign
-  app.post("/api/ad-campaigns", async (req, res) => {
+  // Create ad campaign (protected)
+  app.post("/api/ad-campaigns", isAuthenticated, async (req, res) => {
     try {
       const parsed = insertAdCampaignSchema.safeParse(req.body);
       if (!parsed.success) {
@@ -367,8 +369,8 @@ export async function registerRoutes(
     }
   });
 
-  // Update ad campaign
-  app.patch("/api/ad-campaigns/:id", async (req, res) => {
+  // Update ad campaign (protected)
+  app.patch("/api/ad-campaigns/:id", isAuthenticated, async (req, res) => {
     try {
       const id = parseInt(req.params.id);
       if (isNaN(id)) {
@@ -391,8 +393,8 @@ export async function registerRoutes(
     }
   });
 
-  // Delete ad campaign
-  app.delete("/api/ad-campaigns/:id", async (req, res) => {
+  // Delete ad campaign (protected)
+  app.delete("/api/ad-campaigns/:id", isAuthenticated, async (req, res) => {
     try {
       const id = parseInt(req.params.id);
       if (isNaN(id)) {
@@ -450,6 +452,345 @@ export async function registerRoutes(
     } catch (error) {
       console.error("Failed to clear history:", error);
       res.status(500).json({ error: "Failed to clear playback history" });
+    }
+  });
+
+  // =====================
+  // MEMBER AUTH ROUTES
+  // =====================
+
+  // Register new member
+  app.post("/api/members/register", async (req, res) => {
+    try {
+      const { email, password, displayName } = req.body;
+      
+      if (!email || !password) {
+        return res.status(400).json({ error: "Email and password required" });
+      }
+
+      // Check if email already exists
+      const existing = await storage.getMemberByEmail(email);
+      if (existing) {
+        return res.status(400).json({ error: "Email already registered" });
+      }
+
+      // Simple password hash (for testing - use bcrypt in production)
+      const passwordHash = Buffer.from(password).toString("base64");
+      const verificationToken = Math.random().toString(36).substring(2, 15);
+      const verificationExpires = new Date(Date.now() + 24 * 60 * 60 * 1000);
+
+      const member = await storage.createMember({
+        email,
+        passwordHash,
+        displayName: displayName || email.split("@")[0],
+        verificationToken,
+        verificationExpires,
+      });
+
+      // In a real app, send verification email here
+      console.log(`Verification link: /api/members/verify?token=${verificationToken}`);
+
+      res.status(201).json({ 
+        message: "Account created. Check your email for verification.",
+        id: member.id,
+        email: member.email 
+      });
+    } catch (error) {
+      console.error("Failed to register member:", error);
+      res.status(500).json({ error: "Failed to create account" });
+    }
+  });
+
+  // Login member
+  app.post("/api/members/login", async (req, res) => {
+    try {
+      const { email, password } = req.body;
+      
+      if (!email || !password) {
+        return res.status(400).json({ error: "Email and password required" });
+      }
+
+      const member = await storage.getMemberByEmail(email);
+      if (!member) {
+        return res.status(401).json({ error: "Invalid email or password" });
+      }
+
+      // Simple password check (for testing)
+      const passwordHash = Buffer.from(password).toString("base64");
+      if (member.passwordHash !== passwordHash) {
+        return res.status(401).json({ error: "Invalid email or password" });
+      }
+
+      res.json({ 
+        message: "Login successful",
+        member: {
+          id: member.id,
+          email: member.email,
+          displayName: member.displayName,
+          isPremium: member.isPremium,
+          isVerified: member.isVerified
+        }
+      });
+    } catch (error) {
+      console.error("Failed to login:", error);
+      res.status(500).json({ error: "Login failed" });
+    }
+  });
+
+  // Verify email
+  app.get("/api/members/verify", async (req, res) => {
+    try {
+      const { token } = req.query;
+      
+      if (!token || typeof token !== "string") {
+        return res.status(400).json({ error: "Invalid verification token" });
+      }
+
+      const member = await storage.verifyMember(token);
+      if (!member) {
+        return res.status(400).json({ error: "Invalid or expired verification token" });
+      }
+
+      res.json({ message: "Email verified successfully" });
+    } catch (error) {
+      console.error("Failed to verify email:", error);
+      res.status(500).json({ error: "Verification failed" });
+    }
+  });
+
+  // =====================
+  // ADMIN AUTH ROUTES
+  // =====================
+
+  // Admin login
+  app.post("/api/admin/login", async (req, res) => {
+    try {
+      const { email, password } = req.body;
+      
+      if (!email || !password) {
+        return res.status(400).json({ error: "Email and password required" });
+      }
+
+      const admin = await storage.getAdminUserByEmail(email);
+      if (!admin || !admin.isActive) {
+        return res.status(401).json({ error: "Invalid email or password" });
+      }
+
+      // Simple password check (for testing - use bcrypt in production)
+      const passwordHash = Buffer.from(password).toString("base64");
+      if (admin.passwordHash !== passwordHash) {
+        return res.status(401).json({ error: "Invalid email or password" });
+      }
+
+      // Update last login
+      await storage.updateAdminLastLogin(admin.id);
+
+      // Store admin session
+      (req.session as any).adminId = admin.id;
+      (req.session as any).adminRole = admin.role;
+      (req.session as any).adminPermissions = admin.permissions;
+
+      res.json({ 
+        message: "Login successful",
+        admin: {
+          id: admin.id,
+          email: admin.email,
+          displayName: admin.displayName,
+          role: admin.role,
+          permissions: admin.permissions
+        }
+      });
+    } catch (error) {
+      console.error("Failed to admin login:", error);
+      res.status(500).json({ error: "Login failed" });
+    }
+  });
+
+  // Admin logout
+  app.post("/api/admin/logout", (req, res) => {
+    (req.session as any).adminId = undefined;
+    (req.session as any).adminRole = undefined;
+    (req.session as any).adminPermissions = undefined;
+    res.json({ message: "Logged out successfully" });
+  });
+
+  // Check admin session
+  app.get("/api/admin/me", async (req, res) => {
+    try {
+      const adminId = (req.session as any).adminId;
+      if (!adminId) {
+        return res.status(401).json({ error: "Not authenticated" });
+      }
+
+      const admin = await storage.getAdminUser(adminId);
+      if (!admin || !admin.isActive) {
+        (req.session as any).adminId = undefined;
+        return res.status(401).json({ error: "Not authenticated" });
+      }
+
+      res.json({
+        id: admin.id,
+        email: admin.email,
+        displayName: admin.displayName,
+        role: admin.role,
+        permissions: admin.permissions
+      });
+    } catch (error) {
+      console.error("Failed to get admin session:", error);
+      res.status(500).json({ error: "Failed to get session" });
+    }
+  });
+
+  // =====================
+  // ADMIN MANAGEMENT ROUTES (super_admin only)
+  // =====================
+
+  // Get all admin users
+  app.get("/api/admin/users", async (req, res) => {
+    try {
+      const adminRole = (req.session as any).adminRole;
+      if (adminRole !== "super_admin") {
+        return res.status(403).json({ error: "Super admin access required" });
+      }
+
+      const admins = await storage.getAllAdminUsers();
+      // Don't send password hashes to client
+      const sanitized = admins.map(a => ({
+        id: a.id,
+        email: a.email,
+        displayName: a.displayName,
+        role: a.role,
+        permissions: a.permissions,
+        isActive: a.isActive,
+        createdAt: a.createdAt,
+        lastLoginAt: a.lastLoginAt
+      }));
+      res.json(sanitized);
+    } catch (error) {
+      console.error("Failed to fetch admin users:", error);
+      res.status(500).json({ error: "Failed to fetch admin users" });
+    }
+  });
+
+  // Create admin user
+  app.post("/api/admin/users", async (req, res) => {
+    try {
+      const adminRole = (req.session as any).adminRole;
+      if (adminRole !== "super_admin") {
+        return res.status(403).json({ error: "Super admin access required" });
+      }
+
+      const { email, password, displayName, role, permissions, isActive } = req.body;
+
+      if (!email || !password) {
+        return res.status(400).json({ error: "Email and password required" });
+      }
+
+      // Check if email already exists
+      const existing = await storage.getAdminUserByEmail(email);
+      if (existing) {
+        return res.status(400).json({ error: "Email already registered" });
+      }
+
+      // Simple password hash
+      const passwordHash = Buffer.from(password).toString("base64");
+
+      const admin = await storage.createAdminUser({
+        email,
+        passwordHash,
+        displayName: displayName || email.split("@")[0],
+        role: role || "admin",
+        permissions: permissions || ["stations", "user_stations", "tracks", "ads"],
+        isActive: isActive !== false
+      });
+
+      res.status(201).json({ 
+        id: admin.id,
+        email: admin.email,
+        displayName: admin.displayName,
+        role: admin.role,
+        permissions: admin.permissions,
+        isActive: admin.isActive
+      });
+    } catch (error) {
+      console.error("Failed to create admin user:", error);
+      res.status(500).json({ error: "Failed to create admin user" });
+    }
+  });
+
+  // Update admin user
+  app.patch("/api/admin/users/:id", async (req, res) => {
+    try {
+      const adminRole = (req.session as any).adminRole;
+      if (adminRole !== "super_admin") {
+        return res.status(403).json({ error: "Super admin access required" });
+      }
+
+      const id = parseInt(req.params.id);
+      if (isNaN(id)) {
+        return res.status(400).json({ error: "Invalid admin ID" });
+      }
+
+      const { email, password, displayName, role, permissions, isActive } = req.body;
+
+      const updateData: any = {};
+      if (email) updateData.email = email;
+      if (displayName !== undefined) updateData.displayName = displayName;
+      if (role) updateData.role = role;
+      if (permissions) updateData.permissions = permissions;
+      if (isActive !== undefined) updateData.isActive = isActive;
+      if (password) {
+        updateData.passwordHash = Buffer.from(password).toString("base64");
+      }
+
+      const admin = await storage.updateAdminUser(id, updateData);
+      if (!admin) {
+        return res.status(404).json({ error: "Admin user not found" });
+      }
+
+      res.json({
+        id: admin.id,
+        email: admin.email,
+        displayName: admin.displayName,
+        role: admin.role,
+        permissions: admin.permissions,
+        isActive: admin.isActive
+      });
+    } catch (error) {
+      console.error("Failed to update admin user:", error);
+      res.status(500).json({ error: "Failed to update admin user" });
+    }
+  });
+
+  // Delete admin user
+  app.delete("/api/admin/users/:id", async (req, res) => {
+    try {
+      const adminRole = (req.session as any).adminRole;
+      const currentAdminId = (req.session as any).adminId;
+      
+      if (adminRole !== "super_admin") {
+        return res.status(403).json({ error: "Super admin access required" });
+      }
+
+      const id = parseInt(req.params.id);
+      if (isNaN(id)) {
+        return res.status(400).json({ error: "Invalid admin ID" });
+      }
+
+      // Prevent self-deletion
+      if (id === currentAdminId) {
+        return res.status(400).json({ error: "Cannot delete your own account" });
+      }
+
+      const deleted = await storage.deleteAdminUser(id);
+      if (!deleted) {
+        return res.status(404).json({ error: "Admin user not found" });
+      }
+
+      res.status(204).send();
+    } catch (error) {
+      console.error("Failed to delete admin user:", error);
+      res.status(500).json({ error: "Failed to delete admin user" });
     }
   });
 

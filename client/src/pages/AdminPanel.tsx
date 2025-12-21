@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { Link } from "wouter";
-import { Plus, Pencil, Trash2, Radio, ArrowLeft, GripVertical, Loader2, Music, Megaphone, ListMusic, Upload, Link as LinkIcon } from "lucide-react";
+import { Plus, Pencil, Trash2, Radio, ArrowLeft, GripVertical, Loader2, Music, Megaphone, ListMusic, Upload, Link as LinkIcon, Users, LogOut } from "lucide-react";
 import { ObjectUploader } from "@/components/ObjectUploader";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
@@ -12,10 +12,32 @@ import { Switch } from "@/components/ui/switch";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Badge } from "@/components/ui/badge";
+import { Checkbox } from "@/components/ui/checkbox";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest, queryClient } from "@/lib/queryClient";
+import AdminLogin from "./AdminLogin";
 
-type TabValue = "external" | "user-stations" | "tracks" | "ads";
+type TabValue = "external" | "user-stations" | "tracks" | "ads" | "admins";
+
+interface AdminUser {
+  id: number;
+  email: string;
+  displayName: string | null;
+  role: string;
+  permissions: string[];
+  isActive: boolean;
+  createdAt: string;
+  lastLoginAt: string | null;
+}
+
+interface AdminSession {
+  id: number;
+  email: string;
+  displayName: string | null;
+  role: string;
+  permissions: string[];
+}
 
 interface Station {
   id: number;
@@ -109,28 +131,68 @@ export default function AdminPanel() {
   const { toast } = useToast();
   const [activeTab, setActiveTab] = useState<TabValue>("external");
 
+  const { data: adminSession, isLoading: checkingAuth, refetch } = useQuery<AdminSession>({
+    queryKey: ["/api/admin/me"],
+    retry: false,
+  });
+
+  const logoutMutation = useMutation({
+    mutationFn: async () => {
+      return apiRequest("POST", "/api/admin/logout");
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/admin/me"] });
+      toast({ title: "Logged out successfully" });
+    },
+  });
+
+  if (checkingAuth) {
+    return (
+      <div className="min-h-screen flex items-center justify-center">
+        <Loader2 className="w-8 h-8 animate-spin text-lava-400" />
+      </div>
+    );
+  }
+
+  if (!adminSession) {
+    return <AdminLogin onLoginSuccess={() => refetch()} />;
+  }
+
+  const isSuperAdmin = adminSession.role === "super_admin";
+
   return (
     <div className="min-h-screen bg-background p-4 md:p-8">
       <div className="max-w-5xl mx-auto">
-        <div className="flex items-center gap-4 mb-8">
-          <Link href="/">
-            <Button variant="ghost" size="icon" data-testid="back-to-player">
-              <ArrowLeft className="w-5 h-5" />
-            </Button>
-          </Link>
-          <div>
-            <h1 className="text-2xl font-bold flex items-center gap-2">
-              <Radio className="w-6 h-6 text-lava-400" />
-              Admin Panel
-            </h1>
-            <p className="text-sm text-muted-foreground">
-              Manage stations, tracks, and advertisements
-            </p>
+        <div className="flex items-center justify-between gap-4 mb-8">
+          <div className="flex items-center gap-4">
+            <Link href="/">
+              <Button variant="ghost" size="icon" data-testid="back-to-player">
+                <ArrowLeft className="w-5 h-5" />
+              </Button>
+            </Link>
+            <div>
+              <h1 className="text-2xl font-bold flex items-center gap-2">
+                <Radio className="w-6 h-6 text-lava-400" />
+                Admin Panel
+              </h1>
+              <p className="text-sm text-muted-foreground">
+                Logged in as {adminSession.displayName || adminSession.email}
+              </p>
+            </div>
           </div>
+          <Button
+            variant="ghost"
+            size="icon"
+            onClick={() => logoutMutation.mutate()}
+            disabled={logoutMutation.isPending}
+            data-testid="button-admin-logout"
+          >
+            <LogOut className="w-5 h-5" />
+          </Button>
         </div>
 
         <Tabs value={activeTab} onValueChange={(v) => setActiveTab(v as TabValue)}>
-          <TabsList className="grid w-full grid-cols-4 mb-6">
+          <TabsList className={`grid w-full mb-6 ${isSuperAdmin ? "grid-cols-5" : "grid-cols-4"}`}>
             <TabsTrigger value="external" data-testid="tab-external">
               <Radio className="w-4 h-4 mr-2" />
               External Stations
@@ -147,6 +209,12 @@ export default function AdminPanel() {
               <Megaphone className="w-4 h-4 mr-2" />
               Ad Campaigns
             </TabsTrigger>
+            {isSuperAdmin && (
+              <TabsTrigger value="admins" data-testid="tab-admins">
+                <Users className="w-4 h-4 mr-2" />
+                Admins
+              </TabsTrigger>
+            )}
           </TabsList>
 
           <TabsContent value="external">
@@ -161,6 +229,11 @@ export default function AdminPanel() {
           <TabsContent value="ads">
             <AdCampaignsTab />
           </TabsContent>
+          {isSuperAdmin && (
+            <TabsContent value="admins">
+              <AdminUsersTab />
+            </TabsContent>
+          )}
         </Tabs>
       </div>
     </div>
@@ -1220,6 +1293,278 @@ function AdCampaignsTab() {
               <Button type="submit" disabled={createMutation.isPending || updateMutation.isPending} data-testid="submit-campaign">
                 {(createMutation.isPending || updateMutation.isPending) && <Loader2 className="w-4 h-4 mr-2 animate-spin" />}
                 {editingCampaign ? "Update" : "Create"}
+              </Button>
+            </DialogFooter>
+          </form>
+        </DialogContent>
+      </Dialog>
+    </>
+  );
+}
+
+interface AdminUserFormData {
+  email: string;
+  password: string;
+  displayName: string;
+  role: string;
+  permissions: string[];
+  isActive: boolean;
+}
+
+function AdminUsersTab() {
+  const { toast } = useToast();
+  const [isDialogOpen, setIsDialogOpen] = useState(false);
+  const [editingUser, setEditingUser] = useState<AdminUser | null>(null);
+  const [formData, setFormData] = useState<AdminUserFormData>({
+    email: "",
+    password: "",
+    displayName: "",
+    role: "admin",
+    permissions: [],
+    isActive: true,
+  });
+
+  const availablePermissions = [
+    { id: "stations", label: "External Stations" },
+    { id: "user_stations", label: "User Stations" },
+    { id: "tracks", label: "Tracks" },
+    { id: "ads", label: "Ad Campaigns" },
+    { id: "admin_users", label: "Admin Users" },
+  ];
+
+  const { data: adminUsers = [], isLoading } = useQuery<AdminUser[]>({
+    queryKey: ["/api/admin/users"],
+  });
+
+  const createMutation = useMutation({
+    mutationFn: async (data: AdminUserFormData) => {
+      const response = await apiRequest("POST", "/api/admin/users", data);
+      return response.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/admin/users"] });
+      toast({ title: "Admin user created successfully" });
+      closeDialog();
+    },
+    onError: () => {
+      toast({ title: "Failed to create admin user", variant: "destructive" });
+    },
+  });
+
+  const updateMutation = useMutation({
+    mutationFn: async ({ id, data }: { id: number; data: Partial<AdminUserFormData> }) => {
+      const response = await apiRequest("PATCH", `/api/admin/users/${id}`, data);
+      return response.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/admin/users"] });
+      toast({ title: "Admin user updated successfully" });
+      closeDialog();
+    },
+    onError: () => {
+      toast({ title: "Failed to update admin user", variant: "destructive" });
+    },
+  });
+
+  const deleteMutation = useMutation({
+    mutationFn: async (id: number) => {
+      await apiRequest("DELETE", `/api/admin/users/${id}`);
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/admin/users"] });
+      toast({ title: "Admin user deleted successfully" });
+    },
+    onError: () => {
+      toast({ title: "Failed to delete admin user", variant: "destructive" });
+    },
+  });
+
+  const openCreateDialog = () => {
+    setEditingUser(null);
+    setFormData({
+      email: "",
+      password: "",
+      displayName: "",
+      role: "admin",
+      permissions: [],
+      isActive: true,
+    });
+    setIsDialogOpen(true);
+  };
+
+  const openEditDialog = (user: AdminUser) => {
+    setEditingUser(user);
+    setFormData({
+      email: user.email,
+      password: "",
+      displayName: user.displayName || "",
+      role: user.role,
+      permissions: user.permissions || [],
+      isActive: user.isActive,
+    });
+    setIsDialogOpen(true);
+  };
+
+  const closeDialog = () => {
+    setIsDialogOpen(false);
+    setEditingUser(null);
+  };
+
+  const handleSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (editingUser) {
+      const updateData: Record<string, unknown> = {
+        email: formData.email,
+        role: formData.role,
+        permissions: formData.permissions,
+        isActive: formData.isActive,
+      };
+      if (formData.displayName.trim()) {
+        updateData.displayName = formData.displayName.trim();
+      } else {
+        updateData.displayName = null;
+      }
+      if (formData.password.trim()) {
+        updateData.password = formData.password;
+      }
+      updateMutation.mutate({ id: editingUser.id, data: updateData as Partial<AdminUserFormData> });
+    } else {
+      const createData: Record<string, unknown> = {
+        email: formData.email,
+        password: formData.password,
+        role: formData.role,
+        permissions: formData.permissions,
+        isActive: formData.isActive,
+      };
+      if (formData.displayName.trim()) {
+        createData.displayName = formData.displayName.trim();
+      }
+      createMutation.mutate(createData as AdminUserFormData);
+    }
+  };
+
+  const handlePermissionChange = (permissionId: string, checked: boolean) => {
+    setFormData((prev) => ({
+      ...prev,
+      permissions: checked
+        ? [...prev.permissions, permissionId]
+        : prev.permissions.filter((p) => p !== permissionId),
+    }));
+  };
+
+  if (isLoading) {
+    return (
+      <div className="flex items-center justify-center py-12">
+        <Loader2 className="w-8 h-8 animate-spin text-lava-400" />
+      </div>
+    );
+  }
+
+  return (
+    <>
+      <div className="flex justify-between items-center mb-4 gap-2">
+        <h2 className="text-lg font-semibold" data-testid="text-admin-users-title">Admin Users ({adminUsers.length})</h2>
+        <Button onClick={openCreateDialog} data-testid="button-add-admin-user">
+          <Plus className="w-4 h-4 mr-2" />
+          Add Admin
+        </Button>
+      </div>
+
+      <div className="space-y-3">
+        {adminUsers.map((user) => (
+          <Card key={user.id} data-testid={`card-admin-user-${user.id}`}>
+            <CardContent className="p-4">
+              <div className="flex items-center justify-between gap-2 flex-wrap">
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <span className="font-medium" data-testid={`text-admin-email-${user.id}`}>{user.email}</span>
+                    <Badge variant={user.role === "super_admin" ? "default" : "secondary"} data-testid={`badge-admin-role-${user.id}`}>
+                      {user.role === "super_admin" ? "Super Admin" : "Admin"}
+                    </Badge>
+                    {!user.isActive && (
+                      <Badge variant="outline" data-testid={`badge-admin-inactive-${user.id}`}>Inactive</Badge>
+                    )}
+                  </div>
+                  {user.displayName && (
+                    <p className="text-sm text-muted-foreground" data-testid={`text-admin-name-${user.id}`}>{user.displayName}</p>
+                  )}
+                  {user.permissions && user.permissions.length > 0 && (
+                    <div className="flex gap-1 mt-1 flex-wrap">
+                      {user.permissions.map((perm) => (
+                        <Badge key={perm} variant="outline" className="text-xs" data-testid={`badge-admin-perm-${user.id}-${perm}`}>
+                          {perm}
+                        </Badge>
+                      ))}
+                    </div>
+                  )}
+                </div>
+                <div className="flex gap-2">
+                  <Button size="icon" variant="ghost" onClick={() => openEditDialog(user)} data-testid={`button-edit-admin-${user.id}`}>
+                    <Pencil className="w-4 h-4" />
+                  </Button>
+                  <Button size="icon" variant="ghost" onClick={() => deleteMutation.mutate(user.id)} disabled={deleteMutation.isPending} data-testid={`button-delete-admin-${user.id}`}>
+                    <Trash2 className="w-4 h-4" />
+                  </Button>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+        ))}
+        {adminUsers.length === 0 && (
+          <p className="text-center text-muted-foreground py-8" data-testid="text-no-admin-users">No admin users found</p>
+        )}
+      </div>
+
+      <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle>{editingUser ? "Edit Admin User" : "Add New Admin User"}</DialogTitle>
+          </DialogHeader>
+          <form onSubmit={handleSubmit} className="space-y-4">
+            <div className="space-y-2">
+              <Label htmlFor="admin-email">Email *</Label>
+              <Input id="admin-email" type="email" value={formData.email} onChange={(e) => setFormData({ ...formData, email: e.target.value })} placeholder="admin@example.com" required data-testid="input-admin-email" />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="admin-password">{editingUser ? "Password (leave blank to keep)" : "Password *"}</Label>
+              <Input id="admin-password" type="password" value={formData.password} onChange={(e) => setFormData({ ...formData, password: e.target.value })} placeholder="Enter password" required={!editingUser} data-testid="input-admin-password" />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="admin-displayName">Display Name</Label>
+              <Input id="admin-displayName" value={formData.displayName} onChange={(e) => setFormData({ ...formData, displayName: e.target.value })} placeholder="John Doe" data-testid="input-admin-display-name" />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="admin-role">Role</Label>
+              <Select value={formData.role} onValueChange={(value) => setFormData({ ...formData, role: value })}>
+                <SelectTrigger data-testid="select-admin-role">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="admin">Admin</SelectItem>
+                  <SelectItem value="super_admin">Super Admin</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-2">
+              <Label>Permissions</Label>
+              <div className="space-y-2">
+                {availablePermissions.map((perm) => (
+                  <div key={perm.id} className="flex items-center gap-2">
+                    <Checkbox id={`perm-${perm.id}`} checked={formData.permissions.includes(perm.id)} onCheckedChange={(checked) => handlePermissionChange(perm.id, !!checked)} data-testid={`checkbox-perm-${perm.id}`} />
+                    <Label htmlFor={`perm-${perm.id}`} className="text-sm font-normal cursor-pointer">{perm.label}</Label>
+                  </div>
+                ))}
+              </div>
+            </div>
+            <div className="flex items-center justify-between">
+              <Label htmlFor="admin-isActive">Active</Label>
+              <Switch id="admin-isActive" checked={formData.isActive} onCheckedChange={(checked) => setFormData({ ...formData, isActive: checked })} data-testid="switch-admin-is-active" />
+            </div>
+            <DialogFooter>
+              <Button type="button" variant="outline" onClick={closeDialog}>Cancel</Button>
+              <Button type="submit" disabled={createMutation.isPending || updateMutation.isPending} data-testid="submit-admin-user">
+                {(createMutation.isPending || updateMutation.isPending) && <Loader2 className="w-4 h-4 mr-2 animate-spin" />}
+                {editingUser ? "Update" : "Create"}
               </Button>
             </DialogFooter>
           </form>

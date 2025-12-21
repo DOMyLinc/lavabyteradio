@@ -4,20 +4,7 @@ import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod";
 import { relations } from "drizzle-orm";
 
-// Users table for admin access
-export const users = pgTable("users", {
-  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
-  username: text("username").notNull().unique(),
-  password: text("password").notNull(),
-});
-
-export const insertUserSchema = createInsertSchema(users).pick({
-  username: true,
-  password: true,
-});
-
-export type InsertUser = z.infer<typeof insertUserSchema>;
-export type User = typeof users.$inferSelect;
+export * from "./models/auth";
 
 // Radio stations table (external streaming stations)
 export const stations = pgTable("stations", {
@@ -147,6 +134,59 @@ export const insertPlaybackHistorySchema = createInsertSchema(playbackHistory).o
 
 export type InsertPlaybackHistory = z.infer<typeof insertPlaybackHistorySchema>;
 export type PlaybackHistory = typeof playbackHistory.$inferSelect;
+
+// Platform members (email/password auth)
+export const members = pgTable("members", {
+  id: integer("id").primaryKey().generatedAlwaysAsIdentity(),
+  email: text("email").notNull().unique(),
+  passwordHash: text("password_hash").notNull(),
+  displayName: text("display_name"),
+  avatarUrl: text("avatar_url"),
+  isPremium: boolean("is_premium").default(false).notNull(),
+  isVerified: boolean("is_verified").default(false).notNull(),
+  verificationToken: text("verification_token"),
+  verificationExpires: timestamp("verification_expires"),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+});
+
+export const insertMemberSchema = createInsertSchema(members).omit({
+  id: true,
+  createdAt: true,
+  isPremium: true,
+  isVerified: true,
+});
+
+export type InsertMember = z.infer<typeof insertMemberSchema>;
+export type Member = typeof members.$inferSelect;
+
+// Admin users for panel access
+export const adminUsers = pgTable("admin_users", {
+  id: integer("id").primaryKey().generatedAlwaysAsIdentity(),
+  email: text("email").notNull().unique(),
+  passwordHash: text("password_hash").notNull(),
+  displayName: text("display_name"),
+  role: text("role").notNull().default("admin"), // "super_admin" or "admin"
+  permissions: text("permissions").array().notNull().default(sql`ARRAY['stations', 'user_stations', 'tracks', 'ads']::text[]`),
+  isActive: boolean("is_active").default(true).notNull(),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+  lastLoginAt: timestamp("last_login_at"),
+});
+
+export const insertAdminUserSchema = createInsertSchema(adminUsers).omit({
+  id: true,
+  createdAt: true,
+  lastLoginAt: true,
+});
+
+export const updateAdminUserSchema = createInsertSchema(adminUsers).omit({
+  id: true,
+  createdAt: true,
+  lastLoginAt: true,
+}).partial();
+
+export type InsertAdminUser = z.infer<typeof insertAdminUserSchema>;
+export type UpdateAdminUser = z.infer<typeof updateAdminUserSchema>;
+export type AdminUser = typeof adminUsers.$inferSelect;
 
 // Relations
 export const stationsRelations = relations(stations, ({}) => ({}));

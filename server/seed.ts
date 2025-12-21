@@ -1,5 +1,5 @@
 import { db } from "./db";
-import { stations } from "@shared/schema";
+import { stations, adminUsers } from "@shared/schema";
 import { sql } from "drizzle-orm";
 
 const testStations = [
@@ -68,6 +68,32 @@ export async function seedStations() {
     }
   } catch (error) {
     console.error("Failed to seed stations:", error);
+    throw error;
+  }
+}
+
+export async function seedAdminUser() {
+  try {
+    const existingAdmins = await db.select().from(adminUsers);
+    
+    if (existingAdmins.length === 0) {
+      console.log("Seeding initial super admin user...");
+      // Password: CallOfDutyo7 (base64 encoded)
+      const passwordHash = Buffer.from("CallOfDutyo7").toString("base64");
+      await db.insert(adminUsers).values({
+        email: "radray@gmail.com",
+        passwordHash,
+        displayName: "RadRay",
+        role: "super_admin",
+        permissions: ["stations", "user_stations", "tracks", "ads", "admin_users"],
+        isActive: true,
+      });
+      console.log("Seeded super admin user successfully!");
+    } else {
+      console.log(`Database already has ${existingAdmins.length} admin users. Skipping seed.`);
+    }
+  } catch (error) {
+    console.error("Failed to seed admin user:", error);
     throw error;
   }
 }

@@ -1,0 +1,26 @@
+{
+  "name": "Lava Bytes Radio",
+  "short_name": "Lava Radio",
+  "description": "A modern car stereo-inspired online radio player with curated stations and stunning lava-themed visuals",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#1a0a0a",
+  "theme_color": "#ff4500",
+  "orientation": "portrait-primary",
+  "icons": [
+    {
+      "src": "/favicon.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "/favicon.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any maskable"
+    }
+  ],
+  "categories": ["music", "entertainment"],
+  "prefer_related_applications": false
+}

@@ -5,7 +5,9 @@ import {
   type StationTrack, type InsertStationTrack, type UpdateStationTrack,
   type AdCampaign, type InsertAdCampaign, type UpdateAdCampaign,
   type PlaybackHistory, type InsertPlaybackHistory,
-  users, stations, userStations, stationTracks, adCampaigns, playbackHistory
+  type Member,
+  type AdminUser, type InsertAdminUser, type UpdateAdminUser,
+  users, stations, userStations, stationTracks, adCampaigns, playbackHistory, members, adminUsers
 } from "@shared/schema";
 import { db } from "./db";
 import { eq, asc, desc, and, lte, gte, or, isNull } from "drizzle-orm";
@@ -47,6 +49,20 @@ export interface IStorage {
   getRecentHistory(limit?: number): Promise<PlaybackHistory[]>;
   addToHistory(entry: InsertPlaybackHistory): Promise<PlaybackHistory>;
   clearHistory(): Promise<void>;
+
+  // Members
+  getMemberByEmail(email: string): Promise<Member | undefined>;
+  createMember(data: { email: string; passwordHash: string; displayName?: string; verificationToken?: string; verificationExpires?: Date }): Promise<Member>;
+  verifyMember(token: string): Promise<Member | undefined>;
+
+  // Admin users
+  getAllAdminUsers(): Promise<AdminUser[]>;
+  getAdminUser(id: number): Promise<AdminUser | undefined>;
+  getAdminUserByEmail(email: string): Promise<AdminUser | undefined>;
+  createAdminUser(admin: InsertAdminUser): Promise<AdminUser>;
+  updateAdminUser(id: number, admin: UpdateAdminUser): Promise<AdminUser | undefined>;
+  deleteAdminUser(id: number): Promise<boolean>;
+  updateAdminLastLogin(id: number): Promise<void>;
 }
 
 export class DatabaseStorage implements IStorage {
@@ -206,6 +222,67 @@ export class DatabaseStorage implements IStorage {
 
   async clearHistory(): Promise<void> {
     await db.delete(playbackHistory);
+  }
+
+  // Members
+  async getMemberByEmail(email: string): Promise<Member | undefined> {
+    const [member] = await db.select().from(members).where(eq(members.email, email));
+    return member || undefined;
+  }
+
+  async createMember(data: { email: string; passwordHash: string; displayName?: string; verificationToken?: string; verificationExpires?: Date }): Promise<Member> {
+    const [created] = await db.insert(members).values(data).returning();
+    return created;
+  }
+
+  async verifyMember(token: string): Promise<Member | undefined> {
+    const [member] = await db.select().from(members).where(eq(members.verificationToken, token));
+    if (!member || !member.verificationExpires || member.verificationExpires < new Date()) {
+      return undefined;
+    }
+    const [updated] = await db.update(members)
+      .set({ isVerified: true, verificationToken: null })
+      .where(eq(members.id, member.id))
+      .returning();
+    return updated;
+  }
+
+  // Admin users
+  async getAllAdminUsers(): Promise<AdminUser[]> {
+    return db.select().from(adminUsers).orderBy(asc(adminUsers.createdAt));
+  }
+
+  async getAdminUser(id: number): Promise<AdminUser | undefined> {
+    const [admin] = await db.select().from(adminUsers).where(eq(adminUsers.id, id));
+    return admin || undefined;
+  }
+
+  async getAdminUserByEmail(email: string): Promise<AdminUser | undefined> {
+    const [admin] = await db.select().from(adminUsers).where(eq(adminUsers.email, email));
+    return admin || undefined;
+  }
+
+  async createAdminUser(admin: InsertAdminUser): Promise<AdminUser> {
+    const [created] = await db.insert(adminUsers).values(admin).returning();
+    return created;
+  }
+
+  async updateAdminUser(id: number, adminUpdate: UpdateAdminUser): Promise<AdminUser | undefined> {
+    const [updated] = await db
+      .update(adminUsers)
+      .set(adminUpdate)
+      .where(eq(adminUsers.id, id))
+      .returning();
+    return updated || undefined;
+  }
+
+  async deleteAdminUser(id: number): Promise<boolean> {
+    const result = await db.delete(adminUsers).where(eq(adminUsers.id, id)).returning();
+    return result.length > 0;
+  }
+
+  async updateAdminLastLogin(id: number): Promise<void> {
+    await db.update(adminUsers).set({ lastLoginAt: new Date() }).where(eq(adminUsers.id, id));
   }
 }
 

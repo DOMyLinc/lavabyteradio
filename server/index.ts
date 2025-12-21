@@ -3,6 +3,7 @@ import { registerRoutes } from "./routes";
 import { serveStatic } from "./static";
 import { createServer } from "http";
 import { registerObjectStorageRoutes } from "./replit_integrations/object_storage";
+import { setupAuth, registerAuthRoutes } from "./replit_integrations/auth";
 
 const app = express();
 const httpServer = createServer(app);
@@ -60,11 +61,16 @@ app.use((req, res, next) => {
   next();
 });
 
-import { seedStations } from "./seed";
+import { seedStations, seedAdminUser } from "./seed";
 
 (async () => {
-  // Seed test stations
+  // Setup auth before other routes
+  await setupAuth(app);
+  registerAuthRoutes(app);
+  
+  // Seed test stations and admin user
   await seedStations();
+  await seedAdminUser();
   
   // Register object storage routes for file uploads
   registerObjectStorageRoutes(app);
