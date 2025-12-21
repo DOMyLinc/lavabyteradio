@@ -13,6 +13,8 @@ import { useToast } from "@/hooks/use-toast";
 import { useMutation } from "@tanstack/react-query";
 import { apiRequest } from "@/lib/queryClient";
 import mascotImage from "@assets/generated_images/lava_radio_mascot_character.png";
+import playerMockup from "@assets/generated_images/car_stereo_radio_player_interface.png";
+import mobileMockup from "@assets/generated_images/mobile_radio_app_lock_screen.png";
 
 export default function LandingPage() {
   const [email, setEmail] = useState("");
@@ -189,6 +191,43 @@ export default function LandingPage() {
               <Button size="lg" variant="outline" onClick={() => setIsLoginOpen(true)} data-testid="button-hero-join">
                 <Users className="w-5 h-5 mr-2" /> Join the Community
               </Button>
+            </div>
+          </div>
+        </section>
+
+        <section className="py-16 px-4 md:px-8">
+          <div className="max-w-6xl mx-auto">
+            <h3 className="text-2xl md:text-3xl font-display font-bold text-center mb-4 text-lava-200">Experience the Interface</h3>
+            <p className="text-center text-muted-foreground mb-12">A beautiful, immersive radio player inspired by classic car stereos</p>
+            <div className="grid grid-cols-1 lg:grid-cols-3 gap-8 items-center">
+              <div className="lg:col-span-2">
+                <div className="relative rounded-lg overflow-hidden border-2 border-lava-700/50 shadow-lava-glow">
+                  <img 
+                    src={playerMockup} 
+                    alt="Lava Bytes Radio Player - Desktop Interface" 
+                    className="w-full h-auto"
+                    data-testid="img-player-mockup"
+                  />
+                  <div className="absolute inset-0 bg-gradient-to-t from-background/80 via-transparent to-transparent" />
+                  <div className="absolute bottom-4 left-4 right-4">
+                    <Badge className="bg-lava-600/80 text-lava-100 border-lava-500">Desktop Experience</Badge>
+                  </div>
+                </div>
+              </div>
+              <div className="flex justify-center">
+                <div className="relative rounded-lg overflow-hidden border-2 border-lava-700/50 shadow-lava-glow max-w-[200px]">
+                  <img 
+                    src={mobileMockup} 
+                    alt="Lava Bytes Radio - Mobile Lock Screen Controls" 
+                    className="w-full h-auto"
+                    data-testid="img-mobile-mockup"
+                  />
+                  <div className="absolute inset-0 bg-gradient-to-t from-background/80 via-transparent to-transparent" />
+                  <div className="absolute bottom-4 left-4 right-4">
+                    <Badge className="bg-lava-600/80 text-lava-100 border-lava-500 text-xs">Mobile</Badge>
+                  </div>
+                </div>
+              </div>
             </div>
           </div>
         </section>
