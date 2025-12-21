@@ -15,7 +15,7 @@ import { useAudioProcessor } from "@/hooks/useAudioProcessor";
 import { useMediaSession, cacheAudioForOffline } from "@/hooks/useMediaSession";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest, queryClient } from "@/lib/queryClient";
-import type { UnifiedStation } from "@/pages/RadioPlayer";
+import type { UnifiedStation } from "@/pages/PublicPlayer";
 import type { StationTrack, PlaybackHistory, InsertPlaybackHistory } from "@shared/schema";
 
 interface StereoUnitProps {
