@@ -158,13 +158,13 @@ export default function AdminPanel() {
 
   if (checkingAuth) {
     return (
-      <div className="min-h-screen flex items-center justify-center">
+      <div className="min-h-screen flex items-center justify-center bg-background">
         <Loader2 className="w-8 h-8 animate-spin text-lava-400" />
       </div>
     );
   }
 
-  if (!adminSession) {
+  if (!adminSession || error) {
     return <AdminLogin onLoginSuccess={() => refetch()} />;
   }
 
