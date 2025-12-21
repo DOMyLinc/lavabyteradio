@@ -131,19 +131,9 @@ export default function AdminPanel() {
   const { toast } = useToast();
   const [activeTab, setActiveTab] = useState<TabValue>("external");
 
-  const { data: adminSession, isLoading: checkingAuth, error, refetch } = useQuery<AdminSession | null>({
+  const { data: adminSession, isLoading: checkingAuth, refetch } = useQuery<AdminSession>({
     queryKey: ["/api/admin/me"],
     retry: false,
-    queryFn: async () => {
-      const res = await fetch("/api/admin/me", { credentials: "include" });
-      if (res.status === 401) {
-        return null;
-      }
-      if (!res.ok) {
-        throw new Error("Failed to check auth");
-      }
-      return res.json();
-    },
   });
 
   const logoutMutation = useMutation({
@@ -158,13 +148,13 @@ export default function AdminPanel() {
 
   if (checkingAuth) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-background">
+      <div className="min-h-screen flex items-center justify-center">
         <Loader2 className="w-8 h-8 animate-spin text-lava-400" />
       </div>
     );
   }
 
-  if (!adminSession || error) {
+  if (!adminSession) {
     return <AdminLogin onLoginSuccess={() => refetch()} />;
   }
 
@@ -1423,42 +1413,28 @@ function AdminUsersTab() {
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (editingUser) {
-      const updateData: Record<string, unknown> = {
+      const updateData: Partial<AdminUserFormData> = {
         email: formData.email,
+        displayName: formData.displayName || null,
         role: formData.role,
         permissions: formData.permissions,
         isActive: formData.isActive,
       };
-      if (formData.displayName.trim()) {
-        updateData.displayName = formData.displayName.trim();
-      } else {
-        updateData.displayName = null;
-      }
-      if (formData.password.trim()) {
+      if (formData.password) {
         updateData.password = formData.password;
       }
-      updateMutation.mutate({ id: editingUser.id, data: updateData as Partial<AdminUserFormData> });
+      updateMutation.mutate({ id: editingUser.id, data: updateData });
     } else {
-      const createData: Record<string, unknown> = {
-        email: formData.email,
-        password: formData.password,
-        role: formData.role,
-        permissions: formData.permissions,
-        isActive: formData.isActive,
-      };
-      if (formData.displayName.trim()) {
-        createData.displayName = formData.displayName.trim();
-      }
-      createMutation.mutate(createData as unknown as AdminUserFormData);
+      createMutation.mutate(formData);
     }
   };
 
-  const handlePermissionChange = (permissionId: string, checked: boolean) => {
+  const togglePermission = (permissionId: string) => {
     setFormData((prev) => ({
       ...prev,
-      permissions: checked
-        ? [...prev.permissions, permissionId]
-        : prev.permissions.filter((p) => p !== permissionId),
+      permissions: prev.permissions.includes(permissionId)
+        ? prev.permissions.filter((p) => p !== permissionId)
+        : [...prev.permissions, permissionId],
     }));
   };
 
@@ -1560,7 +1536,7 @@ function AdminUsersTab() {
               <div className="space-y-2">
                 {availablePermissions.map((perm) => (
                   <div key={perm.id} className="flex items-center gap-2">
-                    <Checkbox id={`perm-${perm.id}`} checked={formData.permissions.includes(perm.id)} onCheckedChange={(checked) => handlePermissionChange(perm.id, !!checked)} data-testid={`checkbox-perm-${perm.id}`} />
+                    <Checkbox id={`perm-${perm.id}`} checked={formData.permissions.includes(perm.id)} onCheckedChange={() => togglePermission(perm.id)} data-testid={`checkbox-perm-${perm.id}`} />
                     <Label htmlFor={`perm-${perm.id}`} className="text-sm font-normal cursor-pointer">{perm.label}</Label>
                   </div>
                 ))}
