@@ -21,6 +21,7 @@ export default function AdminPanel() {
     name: "",
     description: "",
     streamUrl: "",
+    videoStreamUrl: "",
     logoUrl: "",
     genre: "",
     presetNumber: null,
@@ -81,6 +82,7 @@ export default function AdminPanel() {
       name: "",
       description: "",
       streamUrl: "",
+      videoStreamUrl: "",
       logoUrl: "",
       genre: "",
       presetNumber: null,
@@ -96,6 +98,7 @@ export default function AdminPanel() {
       name: station.name,
       description: station.description ?? "",
       streamUrl: station.streamUrl,
+      videoStreamUrl: station.videoStreamUrl ?? "",
       logoUrl: station.logoUrl ?? "",
       genre: station.genre ?? "",
       presetNumber: station.presetNumber,
@@ -257,7 +260,7 @@ export default function AdminPanel() {
               </div>
 
               <div className="space-y-2">
-                <Label htmlFor="streamUrl">Stream URL *</Label>
+                <Label htmlFor="streamUrl">Audio Stream URL *</Label>
                 <Input
                   id="streamUrl"
                   value={formData.streamUrl}
@@ -265,6 +268,17 @@ export default function AdminPanel() {
                   placeholder="https://stream.example.com/radio.mp3"
                   required
                   data-testid="input-stream-url"
+                />
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="videoStreamUrl">Video Stream URL (optional)</Label>
+                <Input
+                  id="videoStreamUrl"
+                  value={formData.videoStreamUrl ?? ""}
+                  onChange={(e) => setFormData({ ...formData, videoStreamUrl: e.target.value })}
+                  placeholder="https://stream.example.com/video.m3u8"
+                  data-testid="input-video-stream-url"
                 />
               </div>
 

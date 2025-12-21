@@ -25,6 +25,7 @@ export const stations = pgTable("stations", {
   name: text("name").notNull(),
   description: text("description"),
   streamUrl: text("stream_url").notNull(),
+  videoStreamUrl: text("video_stream_url"), // Optional video stream URL for stations with visuals
   logoUrl: text("logo_url"),
   genre: text("genre"),
   presetNumber: integer("preset_number"), // 1-5 for preset buttons, null if not preset
