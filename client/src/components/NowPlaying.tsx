@@ -1,9 +1,10 @@
 import { RefObject } from "react";
-import { Radio, Music, Play, Pause, Video } from "lucide-react";
-import type { Station } from "@shared/schema";
+import { Radio, Music, Play, Pause, Video, ListMusic } from "lucide-react";
+import type { UnifiedStation } from "@/pages/RadioPlayer";
+import type { StationTrack } from "@shared/schema";
 
 interface NowPlayingProps {
-  station: Station | null;
+  station: UnifiedStation | null;
   isPlaying: boolean;
   isLoading?: boolean;
   onPlayToggle?: () => void;
@@ -11,6 +12,7 @@ interface NowPlayingProps {
   compact?: boolean;
   videoRef?: RefObject<HTMLVideoElement | null>;
   hasVideo?: boolean;
+  currentTrack?: StationTrack | null;
 }
 
 export function NowPlaying({ 
@@ -21,8 +23,12 @@ export function NowPlaying({
   disabled = false, 
   compact = false,
   videoRef,
-  hasVideo = false
+  hasVideo = false,
+  currentTrack
 }: NowPlayingProps) {
+  const isUserStation = station?.type === "user";
+  const displayName = isUserStation && currentTrack ? currentTrack.title : station?.name;
+  const displaySubtitle = isUserStation && currentTrack ? currentTrack.artist : station?.genre;
   if (!station) {
     return (
       <div className="flex flex-col items-center justify-center h-full p-4 text-center">
@@ -125,7 +131,11 @@ export function NowPlaying({
                   />
                 ) : (
                   <div className="w-8 h-8 rounded bg-zinc-800 flex items-center justify-center border border-zinc-700">
-                    <Music className="w-4 h-4 text-lava-400" />
+                    {isUserStation ? (
+                      <ListMusic className="w-4 h-4 text-lava-400" />
+                    ) : (
+                      <Music className="w-4 h-4 text-lava-400" />
+                    )}
                   </div>
                 )}
                 <div className="flex-1 min-w-0">
@@ -133,16 +143,21 @@ export function NowPlaying({
                     className={`text-sm font-semibold text-zinc-100 truncate ${isPlaying ? "led-text" : ""}`}
                     data-testid="now-playing-station"
                   >
-                    {station.name}
+                    {displayName}
                   </h3>
-                  {station.genre && (
+                  {displaySubtitle && (
                     <p className="text-[10px] text-zinc-500 uppercase tracking-wider truncate">
-                      {station.genre}
+                      {displaySubtitle}
+                    </p>
+                  )}
+                  {isUserStation && (
+                    <p className="text-[9px] text-lava-400/70 truncate">
+                      {station.name}
                     </p>
                   )}
                 </div>
               </div>
-              {station.description && (
+              {station.description && !isUserStation && (
                 <p className="text-xs text-zinc-400 line-clamp-1 mt-1">
                   {station.description}
                 </p>

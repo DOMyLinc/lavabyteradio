@@ -1,9 +1,10 @@
-import type { Station } from "@shared/schema";
+import type { UnifiedStation } from "@/pages/RadioPlayer";
 
 interface PresetButtonsProps {
-  stations: Station[];
+  stations: UnifiedStation[];
   currentStationId: number | null;
-  onSelectStation: (station: Station) => void;
+  currentStationType: "external" | "user" | null;
+  onSelectStation: (station: UnifiedStation) => void;
   disabled?: boolean;
   compact?: boolean;
 }
@@ -11,11 +12,14 @@ interface PresetButtonsProps {
 export function PresetButtons({
   stations,
   currentStationId,
+  currentStationType,
   onSelectStation,
   disabled = false,
   compact = false,
 }: PresetButtonsProps) {
-  const presetStations = stations
+  // Only external stations have presets
+  const externalStations = stations.filter(s => s.type === "external");
+  const presetStations = externalStations
     .filter((s) => s.presetNumber !== null && s.presetNumber >= 1 && s.presetNumber <= 5)
     .sort((a, b) => (a.presetNumber ?? 0) - (b.presetNumber ?? 0));
 
@@ -32,7 +36,7 @@ export function PresetButtons({
         </span>
         {presetSlots.map((station, index) => {
           const presetNum = index + 1;
-          const isActive = station && station.id === currentStationId;
+          const isActive = station && station.id === currentStationId && currentStationType === "external";
           const hasStation = station !== null;
 
           return (
@@ -74,7 +78,7 @@ export function PresetButtons({
       <div className="flex gap-2">
         {presetSlots.map((station, index) => {
           const presetNum = index + 1;
-          const isActive = station && station.id === currentStationId;
+          const isActive = station && station.id === currentStationId && currentStationType === "external";
           const hasStation = station !== null;
 
           return (

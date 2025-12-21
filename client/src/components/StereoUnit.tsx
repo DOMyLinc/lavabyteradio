@@ -1,15 +1,17 @@
 import { useState, useRef, useEffect, useCallback } from "react";
 import { SkipBack, SkipForward, Home, Settings, List, Power, Volume2 } from "lucide-react";
+import { useQuery } from "@tanstack/react-query";
 import Hls from "hls.js";
 import { VolumeKnob } from "./VolumeKnob";
 import { NowPlaying } from "./NowPlaying";
 import { StationList } from "./StationList";
 import { PresetButtons } from "./PresetButtons";
 import { useToast } from "@/hooks/use-toast";
-import type { Station } from "@shared/schema";
+import type { UnifiedStation } from "@/pages/RadioPlayer";
+import type { StationTrack } from "@shared/schema";
 
 interface StereoUnitProps {
-  stations: Station[];
+  stations: UnifiedStation[];
   isLoading: boolean;
 }
 
@@ -17,19 +19,29 @@ export function StereoUnit({ stations, isLoading }: StereoUnitProps) {
   const [isPoweredOn, setIsPoweredOn] = useState(true);
   const [isPlaying, setIsPlaying] = useState(false);
   const [isStreamLoading, setIsStreamLoading] = useState(false);
-  const [currentStation, setCurrentStation] = useState<Station | null>(null);
+  const [currentStation, setCurrentStation] = useState<UnifiedStation | null>(null);
+  const [currentTrackIndex, setCurrentTrackIndex] = useState(0);
+  const [currentTrack, setCurrentTrack] = useState<StationTrack | null>(null);
   const [volume, setVolume] = useState(0.7);
   const [isStationListOpen, setIsStationListOpen] = useState(false);
+  const [pendingAutoplayStationId, setPendingAutoplayStationId] = useState<number | null>(null);
   const audioRef = useRef<HTMLAudioElement | null>(null);
   const videoRef = useRef<HTMLVideoElement | null>(null);
   const hlsRef = useRef<Hls | null>(null);
   const { toast } = useToast();
+  
+  // Fetch tracks for user stations
+  const { data: tracks = [] } = useQuery<StationTrack[]>({
+    queryKey: ["/api/user-stations", currentStation?.id, "tracks"],
+    enabled: currentStation?.type === "user",
+  });
 
-  const hasVideo = currentStation?.videoStreamUrl;
+  const hasVideo = currentStation?.type === "external" && currentStation.videoStreamUrl;
+  const isUserStation = currentStation?.type === "user";
 
   useEffect(() => {
     if (stations.length > 0 && !currentStation) {
-      const firstPreset = stations.find((s) => s.presetNumber === 1 && s.isActive);
+      const firstPreset = stations.find((s) => s.type === "external" && s.presetNumber === 1 && s.isActive);
       if (firstPreset) {
         setCurrentStation(firstPreset);
       } else {
@@ -40,6 +52,78 @@ export function StereoUnit({ stations, isLoading }: StereoUnitProps) {
       }
     }
   }, [stations, currentStation]);
+  
+  // Reset track index when station changes
+  useEffect(() => {
+    setCurrentTrackIndex(0);
+    setCurrentTrack(null);
+  }, [currentStation?.id]);
+  
+  // Update current track when tracks are loaded or index changes
+  useEffect(() => {
+    if (tracks.length > 0 && currentStation?.type === "user") {
+      setCurrentTrack(tracks[currentTrackIndex] || null);
+    } else {
+      setCurrentTrack(null);
+    }
+  }, [tracks, currentTrackIndex, currentStation]);
+
+  // Play a track from a user station playlist
+  const playTrack = useCallback(async (track: StationTrack) => {
+    if (!isPoweredOn || !audioRef.current) return;
+    
+    setIsStreamLoading(true);
+    
+    // Cleanup video if active
+    if (hlsRef.current) {
+      hlsRef.current.destroy();
+      hlsRef.current = null;
+    }
+    if (videoRef.current) {
+      videoRef.current.pause();
+      videoRef.current.removeAttribute("src");
+      videoRef.current.load();
+    }
+    
+    const audio = audioRef.current;
+    audio.src = track.mediaUrl;
+    
+    try {
+      await audio.play();
+      setIsPlaying(true);
+    } catch (error) {
+      console.error("Failed to play track:", error);
+      setIsPlaying(false);
+      toast({
+        title: "Playback Error",
+        description: "Failed to play this track.",
+        variant: "destructive",
+      });
+    } finally {
+      setIsStreamLoading(false);
+    }
+  }, [isPoweredOn, toast]);
+  
+  // Handle track ended - move to next track in playlist (looping) and play it
+  const handleTrackEnded = useCallback(() => {
+    if (currentStation?.type === "user" && tracks.length > 0) {
+      const nextIndex = (currentTrackIndex + 1) % tracks.length;
+      
+      // For single-track playlists (or wraparound to same track), 
+      // we need to call playTrack directly since index won't change
+      if (nextIndex === currentTrackIndex || tracks.length === 1) {
+        const trackToPlay = tracks[nextIndex];
+        if (trackToPlay) {
+          playTrack(trackToPlay);
+        }
+      } else {
+        // For multi-track playlists, update index and let the effect handle playback
+        setCurrentTrackIndex(nextIndex);
+      }
+    } else {
+      setIsPlaying(false);
+    }
+  }, [currentStation, tracks, currentTrackIndex, playTrack]);
 
   useEffect(() => {
     if (!audioRef.current) {
@@ -55,20 +139,19 @@ export function StereoUnit({ stations, isLoading }: StereoUnitProps) {
       setIsStreamLoading(false);
       setIsPlaying(false);
     };
-    const handleEnded = () => setIsPlaying(false);
 
     audio.addEventListener("loadstart", handleLoadStart);
     audio.addEventListener("canplay", handleCanPlay);
     audio.addEventListener("error", handleError);
-    audio.addEventListener("ended", handleEnded);
+    audio.addEventListener("ended", handleTrackEnded);
 
     return () => {
       audio.removeEventListener("loadstart", handleLoadStart);
       audio.removeEventListener("canplay", handleCanPlay);
       audio.removeEventListener("error", handleError);
-      audio.removeEventListener("ended", handleEnded);
+      audio.removeEventListener("ended", handleTrackEnded);
     };
-  }, []);
+  }, [handleTrackEnded]);
 
   useEffect(() => {
     if (audioRef.current) {
@@ -143,11 +226,28 @@ export function StereoUnit({ stations, isLoading }: StereoUnitProps) {
     }
   }, [toast]);
 
-  const playStation = useCallback(async (station: Station) => {
+  const playStation = useCallback(async (station: UnifiedStation) => {
     if (!isPoweredOn) return;
 
     setIsStreamLoading(true);
 
+    // For user stations, we play from the tracks playlist
+    if (station.type === "user") {
+      // Stop any currently playing audio/video immediately
+      if (audioRef.current) {
+        audioRef.current.pause();
+        audioRef.current.src = "";
+      }
+      cleanupVideo();
+      
+      // Set pending autoplay for this specific station ID
+      // The effect below will start playback when tracks for this station load
+      setPendingAutoplayStationId(station.id);
+      setIsStreamLoading(true);
+      return;
+    }
+
+    // External station with video
     if (station.videoStreamUrl && videoRef.current) {
       if (audioRef.current) {
         audioRef.current.pause();
@@ -172,6 +272,7 @@ export function StereoUnit({ stations, isLoading }: StereoUnitProps) {
         setIsStreamLoading(false);
       }
     } else if (audioRef.current) {
+      // External station with audio stream
       cleanupVideo();
 
       const audio = audioRef.current;
@@ -194,7 +295,44 @@ export function StereoUnit({ stations, isLoading }: StereoUnitProps) {
         setIsStreamLoading(false);
       }
     }
-  }, [isPoweredOn, setupVideoHls, cleanupVideo, toast]);
+  }, [isPoweredOn, setupVideoHls, cleanupVideo, toast, tracks, currentTrackIndex, playTrack]);
+  
+  // Auto-play next track when track index changes (for user stations - handles track transitions)
+  // This fires when handleTrackEnded increments the index
+  const prevTrackIndexRef = useRef<number | null>(null);
+  useEffect(() => {
+    // Only auto-advance if: playing, user station, index changed (not initial render), and track exists
+    if (currentStation?.type === "user" && isPlaying && prevTrackIndexRef.current !== null && prevTrackIndexRef.current !== currentTrackIndex && tracks.length > 0) {
+      const trackToPlay = tracks[currentTrackIndex];
+      if (trackToPlay) {
+        playTrack(trackToPlay);
+      }
+    }
+    prevTrackIndexRef.current = currentTrackIndex;
+  }, [currentTrackIndex, currentStation, isPlaying, tracks, playTrack]);
+  
+  // Start playing when tracks are loaded for the pending autoplay station
+  useEffect(() => {
+    // Only start playback when:
+    // 1. We have a pending autoplay station ID
+    // 2. The current station matches that ID (confirming the station switch completed)
+    // 3. Tracks are loaded for this station
+    // 4. Power is on
+    if (
+      pendingAutoplayStationId !== null &&
+      currentStation?.type === "user" &&
+      currentStation.id === pendingAutoplayStationId &&
+      tracks.length > 0 &&
+      isPoweredOn
+    ) {
+      setPendingAutoplayStationId(null);
+      // Use currentTrackIndex to resume at correct position (usually 0 for new station)
+      const trackToPlay = tracks[currentTrackIndex] || tracks[0];
+      if (trackToPlay) {
+        playTrack(trackToPlay);
+      }
+    }
+  }, [pendingAutoplayStationId, currentStation, tracks, isPoweredOn, playTrack, currentTrackIndex]);
 
   const pausePlayback = useCallback(() => {
     if (audioRef.current) {
@@ -206,8 +344,9 @@ export function StereoUnit({ stations, isLoading }: StereoUnitProps) {
     setIsPlaying(false);
   }, []);
 
-  const handleSelectStation = useCallback((station: Station) => {
+  const handleSelectStation = useCallback((station: UnifiedStation) => {
     setCurrentStation(station);
+    setCurrentTrackIndex(0);
     if (isPoweredOn && isPlaying) {
       playStation(station);
     }
@@ -396,6 +535,7 @@ export function StereoUnit({ stations, isLoading }: StereoUnitProps) {
                     compact
                     videoRef={videoRef}
                     hasVideo={!!hasVideo}
+                    currentTrack={currentTrack}
                   />
                 </div>
 
@@ -403,6 +543,7 @@ export function StereoUnit({ stations, isLoading }: StereoUnitProps) {
                   <PresetButtons
                     stations={activeStations}
                     currentStationId={currentStation?.id ?? null}
+                    currentStationType={currentStation?.type ?? null}
                     onSelectStation={handleSelectStation}
                     disabled={!isPoweredOn}
                     compact
@@ -478,6 +619,7 @@ export function StereoUnit({ stations, isLoading }: StereoUnitProps) {
       <StationList
         stations={activeStations}
         currentStationId={currentStation?.id ?? null}
+        currentStationType={currentStation?.type ?? null}
         onSelectStation={handleSelectStation}
         onClose={() => setIsStationListOpen(false)}
         isOpen={isStationListOpen}

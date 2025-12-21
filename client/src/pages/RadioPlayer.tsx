@@ -1,14 +1,32 @@
 import { useQuery } from "@tanstack/react-query";
 import { LavaBackground } from "@/components/LavaBackground";
 import { StereoUnit } from "@/components/StereoUnit";
+import { AdBanner } from "@/components/AdBanner";
 import { Loader2 } from "lucide-react";
-import type { Station } from "@shared/schema";
+import type { Station, UserStation } from "@shared/schema";
 import mascotImage from "@assets/588496392_1194040775959608_6497226853787014568_n_1766326274153.jpg";
 
+export type UnifiedStation = 
+  | (Station & { type: "external" })
+  | (UserStation & { type: "user" });
+
 export default function RadioPlayer() {
-  const { data: stations = [], isLoading, error } = useQuery<Station[]>({
+  const { data: externalStations = [], isLoading: loadingExternal, error: errorExternal } = useQuery<Station[]>({
     queryKey: ["/api/stations"],
   });
+  
+  const { data: userStations = [], isLoading: loadingUser, error: errorUser } = useQuery<UserStation[]>({
+    queryKey: ["/api/user-stations"],
+  });
+  
+  const isLoading = loadingExternal || loadingUser;
+  const error = errorExternal || errorUser;
+  
+  // Combine stations into a unified list
+  const stations: UnifiedStation[] = [
+    ...externalStations.filter(s => s.isActive).map(s => ({ ...s, type: "external" as const })),
+    ...userStations.filter(s => s.isActive).map(s => ({ ...s, type: "user" as const })),
+  ];
 
   return (
     <div className="min-h-screen flex flex-col relative overflow-hidden">
@@ -65,7 +83,8 @@ export default function RadioPlayer() {
       </main>
 
       <footer className="relative z-10 text-center p-4 text-xs text-muted-foreground">
-        <p>Lava Bytes Radio - Streaming Online Radio</p>
+        <AdBanner />
+        <p className="mt-2">Lava Bytes Radio - Streaming Online Radio</p>
       </footer>
     </div>
   );
