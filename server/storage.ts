@@ -1,10 +1,13 @@
 import { 
   type User, type InsertUser, 
   type Station, type InsertStation, type UpdateStation,
-  users, stations 
+  type UserStation, type InsertUserStation, type UpdateUserStation,
+  type StationTrack, type InsertStationTrack, type UpdateStationTrack,
+  type AdCampaign, type InsertAdCampaign, type UpdateAdCampaign,
+  users, stations, userStations, stationTracks, adCampaigns
 } from "@shared/schema";
 import { db } from "./db";
-import { eq, asc } from "drizzle-orm";
+import { eq, asc, and, lte, gte, or, isNull } from "drizzle-orm";
 
 export interface IStorage {
   getUser(id: string): Promise<User | undefined>;
@@ -16,6 +19,28 @@ export interface IStorage {
   createStation(station: InsertStation): Promise<Station>;
   updateStation(id: number, station: UpdateStation): Promise<Station | undefined>;
   deleteStation(id: number): Promise<boolean>;
+
+  // User stations (playlist-based)
+  getAllUserStations(): Promise<UserStation[]>;
+  getUserStation(id: number): Promise<UserStation | undefined>;
+  createUserStation(station: InsertUserStation): Promise<UserStation>;
+  updateUserStation(id: number, station: UpdateUserStation): Promise<UserStation | undefined>;
+  deleteUserStation(id: number): Promise<boolean>;
+
+  // Station tracks
+  getTracksByStation(stationId: number): Promise<StationTrack[]>;
+  getTrack(id: number): Promise<StationTrack | undefined>;
+  createTrack(track: InsertStationTrack): Promise<StationTrack>;
+  updateTrack(id: number, track: UpdateStationTrack): Promise<StationTrack | undefined>;
+  deleteTrack(id: number): Promise<boolean>;
+
+  // Ad campaigns
+  getAllAdCampaigns(): Promise<AdCampaign[]>;
+  getActiveAdCampaigns(): Promise<AdCampaign[]>;
+  getAdCampaign(id: number): Promise<AdCampaign | undefined>;
+  createAdCampaign(campaign: InsertAdCampaign): Promise<AdCampaign>;
+  updateAdCampaign(id: number, campaign: UpdateAdCampaign): Promise<AdCampaign | undefined>;
+  deleteAdCampaign(id: number): Promise<boolean>;
 }
 
 export class DatabaseStorage implements IStorage {
@@ -59,6 +84,105 @@ export class DatabaseStorage implements IStorage {
 
   async deleteStation(id: number): Promise<boolean> {
     const result = await db.delete(stations).where(eq(stations.id, id)).returning();
+    return result.length > 0;
+  }
+
+  // User stations (playlist-based)
+  async getAllUserStations(): Promise<UserStation[]> {
+    return db.select().from(userStations).orderBy(asc(userStations.sortOrder));
+  }
+
+  async getUserStation(id: number): Promise<UserStation | undefined> {
+    const [station] = await db.select().from(userStations).where(eq(userStations.id, id));
+    return station || undefined;
+  }
+
+  async createUserStation(station: InsertUserStation): Promise<UserStation> {
+    const [created] = await db.insert(userStations).values(station).returning();
+    return created;
+  }
+
+  async updateUserStation(id: number, stationUpdate: UpdateUserStation): Promise<UserStation | undefined> {
+    const [updated] = await db
+      .update(userStations)
+      .set(stationUpdate)
+      .where(eq(userStations.id, id))
+      .returning();
+    return updated || undefined;
+  }
+
+  async deleteUserStation(id: number): Promise<boolean> {
+    const result = await db.delete(userStations).where(eq(userStations.id, id)).returning();
+    return result.length > 0;
+  }
+
+  // Station tracks
+  async getTracksByStation(stationId: number): Promise<StationTrack[]> {
+    return db.select().from(stationTracks)
+      .where(eq(stationTracks.stationId, stationId))
+      .orderBy(asc(stationTracks.sortOrder));
+  }
+
+  async getTrack(id: number): Promise<StationTrack | undefined> {
+    const [track] = await db.select().from(stationTracks).where(eq(stationTracks.id, id));
+    return track || undefined;
+  }
+
+  async createTrack(track: InsertStationTrack): Promise<StationTrack> {
+    const [created] = await db.insert(stationTracks).values(track).returning();
+    return created;
+  }
+
+  async updateTrack(id: number, trackUpdate: UpdateStationTrack): Promise<StationTrack | undefined> {
+    const [updated] = await db
+      .update(stationTracks)
+      .set(trackUpdate)
+      .where(eq(stationTracks.id, id))
+      .returning();
+    return updated || undefined;
+  }
+
+  async deleteTrack(id: number): Promise<boolean> {
+    const result = await db.delete(stationTracks).where(eq(stationTracks.id, id)).returning();
+    return result.length > 0;
+  }
+
+  // Ad campaigns
+  async getAllAdCampaigns(): Promise<AdCampaign[]> {
+    return db.select().from(adCampaigns).orderBy(asc(adCampaigns.createdAt));
+  }
+
+  async getActiveAdCampaigns(): Promise<AdCampaign[]> {
+    const now = new Date();
+    return db.select().from(adCampaigns)
+      .where(and(
+        eq(adCampaigns.isActive, true),
+        or(isNull(adCampaigns.startDate), lte(adCampaigns.startDate, now)),
+        or(isNull(adCampaigns.endDate), gte(adCampaigns.endDate, now))
+      ));
+  }
+
+  async getAdCampaign(id: number): Promise<AdCampaign | undefined> {
+    const [campaign] = await db.select().from(adCampaigns).where(eq(adCampaigns.id, id));
+    return campaign || undefined;
+  }
+
+  async createAdCampaign(campaign: InsertAdCampaign): Promise<AdCampaign> {
+    const [created] = await db.insert(adCampaigns).values(campaign).returning();
+    return created;
+  }
+
+  async updateAdCampaign(id: number, campaignUpdate: UpdateAdCampaign): Promise<AdCampaign | undefined> {
+    const [updated] = await db
+      .update(adCampaigns)
+      .set(campaignUpdate)
+      .where(eq(adCampaigns.id, id))
+      .returning();
+    return updated || undefined;
+  }
+
+  async deleteAdCampaign(id: number): Promise<boolean> {
+    const result = await db.delete(adCampaigns).where(eq(adCampaigns.id, id)).returning();
     return result.length > 0;
   }
 }

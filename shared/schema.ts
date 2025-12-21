@@ -19,16 +19,16 @@ export const insertUserSchema = createInsertSchema(users).pick({
 export type InsertUser = z.infer<typeof insertUserSchema>;
 export type User = typeof users.$inferSelect;
 
-// Radio stations table
+// Radio stations table (external streaming stations)
 export const stations = pgTable("stations", {
   id: integer("id").primaryKey().generatedAlwaysAsIdentity(),
   name: text("name").notNull(),
   description: text("description"),
   streamUrl: text("stream_url").notNull(),
-  videoStreamUrl: text("video_stream_url"), // Optional video stream URL for stations with visuals
+  videoStreamUrl: text("video_stream_url"),
   logoUrl: text("logo_url"),
   genre: text("genre"),
-  presetNumber: integer("preset_number"), // 1-5 for preset buttons, null if not preset
+  presetNumber: integer("preset_number"),
   isActive: boolean("is_active").default(true).notNull(),
   sortOrder: integer("sort_order").default(0).notNull(),
 });
@@ -45,5 +45,97 @@ export type InsertStation = z.infer<typeof insertStationSchema>;
 export type UpdateStation = z.infer<typeof updateStationSchema>;
 export type Station = typeof stations.$inferSelect;
 
-// Station relations
-export const stationsRelations = relations(stations, ({ }) => ({}));
+// User-created radio stations (playlist-based)
+export const userStations = pgTable("user_stations", {
+  id: integer("id").primaryKey().generatedAlwaysAsIdentity(),
+  name: text("name").notNull(),
+  description: text("description"),
+  logoUrl: text("logo_url"),
+  genre: text("genre"),
+  isActive: boolean("is_active").default(true).notNull(),
+  sortOrder: integer("sort_order").default(0).notNull(),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+});
+
+export const insertUserStationSchema = createInsertSchema(userStations).omit({
+  id: true,
+  createdAt: true,
+});
+
+export const updateUserStationSchema = createInsertSchema(userStations).omit({
+  id: true,
+  createdAt: true,
+}).partial();
+
+export type InsertUserStation = z.infer<typeof insertUserStationSchema>;
+export type UpdateUserStation = z.infer<typeof updateUserStationSchema>;
+export type UserStation = typeof userStations.$inferSelect;
+
+// Tracks for user stations
+export const stationTracks = pgTable("station_tracks", {
+  id: integer("id").primaryKey().generatedAlwaysAsIdentity(),
+  stationId: integer("station_id").notNull().references(() => userStations.id, { onDelete: "cascade" }),
+  title: text("title").notNull(),
+  artist: text("artist"),
+  duration: integer("duration"), // Duration in seconds
+  mediaUrl: text("media_url").notNull(), // Object storage path
+  mediaType: text("media_type").notNull(), // "audio" or "video"
+  sortOrder: integer("sort_order").default(0).notNull(),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+});
+
+export const insertStationTrackSchema = createInsertSchema(stationTracks).omit({
+  id: true,
+  createdAt: true,
+});
+
+export const updateStationTrackSchema = createInsertSchema(stationTracks).omit({
+  id: true,
+  stationId: true,
+  createdAt: true,
+}).partial();
+
+export type InsertStationTrack = z.infer<typeof insertStationTrackSchema>;
+export type UpdateStationTrack = z.infer<typeof updateStationTrackSchema>;
+export type StationTrack = typeof stationTracks.$inferSelect;
+
+// Ad campaigns for banner ads
+export const adCampaigns = pgTable("ad_campaigns", {
+  id: integer("id").primaryKey().generatedAlwaysAsIdentity(),
+  name: text("name").notNull(),
+  imageUrl: text("image_url").notNull(),
+  targetUrl: text("target_url").notNull(),
+  isActive: boolean("is_active").default(true).notNull(),
+  weight: integer("weight").default(1).notNull(), // Higher weight = more frequent display
+  startDate: timestamp("start_date"),
+  endDate: timestamp("end_date"),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+});
+
+export const insertAdCampaignSchema = createInsertSchema(adCampaigns).omit({
+  id: true,
+  createdAt: true,
+});
+
+export const updateAdCampaignSchema = createInsertSchema(adCampaigns).omit({
+  id: true,
+  createdAt: true,
+}).partial();
+
+export type InsertAdCampaign = z.infer<typeof insertAdCampaignSchema>;
+export type UpdateAdCampaign = z.infer<typeof updateAdCampaignSchema>;
+export type AdCampaign = typeof adCampaigns.$inferSelect;
+
+// Relations
+export const stationsRelations = relations(stations, ({}) => ({}));
+
+export const userStationsRelations = relations(userStations, ({ many }) => ({
+  tracks: many(stationTracks),
+}));
+
+export const stationTracksRelations = relations(stationTracks, ({ one }) => ({
+  station: one(userStations, {
+    fields: [stationTracks.stationId],
+    references: [userStations.id],
+  }),
+}));
