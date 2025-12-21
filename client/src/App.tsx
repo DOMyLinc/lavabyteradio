@@ -5,7 +5,6 @@ import { Toaster } from "@/components/ui/toaster";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import LandingPage from "@/pages/LandingPage";
 import RadioPlayer from "@/pages/RadioPlayer";
-import AdminPanel from "@/pages/AdminPanel";
 import NotFound from "@/pages/not-found";
 
 function Router() {
@@ -13,7 +12,6 @@ function Router() {
     <Switch>
       <Route path="/" component={LandingPage} />
       <Route path="/player" component={RadioPlayer} />
-      <Route path="/admin" component={AdminPanel} />
       <Route component={NotFound} />
     </Switch>
   );
