@@ -1,14 +1,16 @@
 import { useState, useRef, useEffect, useCallback } from "react";
-import { SkipBack, SkipForward, Home, Settings, List, Power, Volume2 } from "lucide-react";
-import { useQuery } from "@tanstack/react-query";
+import { SkipBack, SkipForward, Home, Settings, List, Power, Volume2, History } from "lucide-react";
+import { useQuery, useMutation } from "@tanstack/react-query";
 import Hls from "hls.js";
 import { VolumeKnob } from "./VolumeKnob";
 import { NowPlaying } from "./NowPlaying";
 import { StationList } from "./StationList";
 import { PresetButtons } from "./PresetButtons";
+import { RecentlyPlayed } from "./RecentlyPlayed";
 import { useToast } from "@/hooks/use-toast";
+import { apiRequest, queryClient } from "@/lib/queryClient";
 import type { UnifiedStation } from "@/pages/RadioPlayer";
-import type { StationTrack } from "@shared/schema";
+import type { StationTrack, PlaybackHistory, InsertPlaybackHistory } from "@shared/schema";
 
 interface StereoUnitProps {
   stations: UnifiedStation[];
@@ -24,11 +26,21 @@ export function StereoUnit({ stations, isLoading }: StereoUnitProps) {
   const [currentTrack, setCurrentTrack] = useState<StationTrack | null>(null);
   const [volume, setVolume] = useState(0.7);
   const [isStationListOpen, setIsStationListOpen] = useState(false);
+  const [isHistoryOpen, setIsHistoryOpen] = useState(false);
   const [pendingAutoplayStationId, setPendingAutoplayStationId] = useState<number | null>(null);
   const audioRef = useRef<HTMLAudioElement | null>(null);
   const videoRef = useRef<HTMLVideoElement | null>(null);
   const hlsRef = useRef<Hls | null>(null);
   const { toast } = useToast();
+  
+  const addToHistoryMutation = useMutation({
+    mutationFn: async (entry: InsertPlaybackHistory) => {
+      return apiRequest<PlaybackHistory>("POST", "/api/history", entry);
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/history"] });
+    },
+  });
   
   // Fetch tracks for user stations
   const { data: tracks = [] } = useQuery<StationTrack[]>({
@@ -69,7 +81,7 @@ export function StereoUnit({ stations, isLoading }: StereoUnitProps) {
   }, [tracks, currentTrackIndex, currentStation]);
 
   // Play a track from a user station playlist
-  const playTrack = useCallback(async (track: StationTrack) => {
+  const playTrack = useCallback(async (track: StationTrack, station?: UnifiedStation) => {
     if (!isPoweredOn || !audioRef.current) return;
     
     setIsStreamLoading(true);
@@ -91,6 +103,19 @@ export function StereoUnit({ stations, isLoading }: StereoUnitProps) {
     try {
       await audio.play();
       setIsPlaying(true);
+      
+      // Add to playback history
+      const stationToUse = station || currentStation;
+      if (stationToUse) {
+        addToHistoryMutation.mutate({
+          userStationId: stationToUse.type === "user" ? stationToUse.id : null,
+          trackId: track.id,
+          stationName: stationToUse.name,
+          trackTitle: track.title,
+          trackArtist: track.artist,
+          logoUrl: stationToUse.logoUrl,
+        });
+      }
     } catch (error) {
       console.error("Failed to play track:", error);
       setIsPlaying(false);
@@ -102,7 +127,7 @@ export function StereoUnit({ stations, isLoading }: StereoUnitProps) {
     } finally {
       setIsStreamLoading(false);
     }
-  }, [isPoweredOn, toast]);
+  }, [isPoweredOn, toast, currentStation, addToHistoryMutation]);
   
   // Handle track ended - move to next track in playlist (looping) and play it
   const handleTrackEnded = useCallback(() => {
@@ -260,6 +285,13 @@ export function StereoUnit({ stations, isLoading }: StereoUnitProps) {
       try {
         await video.play();
         setIsPlaying(true);
+        
+        // Add to playback history for external video station
+        addToHistoryMutation.mutate({
+          stationId: station.id,
+          stationName: station.name,
+          logoUrl: station.logoUrl,
+        });
       } catch (error) {
         console.error("Failed to play video:", error);
         setIsPlaying(false);
@@ -283,6 +315,13 @@ export function StereoUnit({ stations, isLoading }: StereoUnitProps) {
       try {
         await audio.play();
         setIsPlaying(true);
+        
+        // Add to playback history for external audio station
+        addToHistoryMutation.mutate({
+          stationId: station.id,
+          stationName: station.name,
+          logoUrl: station.logoUrl,
+        });
       } catch (error) {
         console.error("Failed to play station:", error);
         setIsPlaying(false);
@@ -295,7 +334,7 @@ export function StereoUnit({ stations, isLoading }: StereoUnitProps) {
         setIsStreamLoading(false);
       }
     }
-  }, [isPoweredOn, setupVideoHls, cleanupVideo, toast, tracks, currentTrackIndex, playTrack]);
+  }, [isPoweredOn, setupVideoHls, cleanupVideo, toast, tracks, currentTrackIndex, playTrack, addToHistoryMutation]);
   
   // Auto-play next track when track index changes (for user stations - handles track transitions)
   // This fires when handleTrackEnded increments the index
@@ -551,20 +590,36 @@ export function StereoUnit({ stations, isLoading }: StereoUnitProps) {
                 </div>
 
                 <div className="flex items-center justify-between px-3 py-2 border-t border-zinc-800/50 bg-zinc-900/30">
-                  <button
-                    onClick={() => setIsStationListOpen(true)}
-                    disabled={!isPoweredOn}
-                    className={`
-                      flex items-center gap-1.5 px-2 py-1 rounded
-                      text-[10px] font-mono text-zinc-400 uppercase tracking-wider
-                      ${isPoweredOn ? "hover:bg-zinc-800/50 hover:text-zinc-300" : "opacity-50"}
-                      transition-colors
-                    `}
-                    data-testid="open-station-list"
-                  >
-                    <List className="w-3 h-3" />
-                    Stations
-                  </button>
+                  <div className="flex items-center gap-2">
+                    <button
+                      onClick={() => setIsStationListOpen(true)}
+                      disabled={!isPoweredOn}
+                      className={`
+                        flex items-center gap-1.5 px-2 py-1 rounded
+                        text-[10px] font-mono text-zinc-400 uppercase tracking-wider
+                        ${isPoweredOn ? "hover:bg-zinc-800/50 hover:text-zinc-300" : "opacity-50"}
+                        transition-colors
+                      `}
+                      data-testid="open-station-list"
+                    >
+                      <List className="w-3 h-3" />
+                      Stations
+                    </button>
+                    <button
+                      onClick={() => setIsHistoryOpen(true)}
+                      disabled={!isPoweredOn}
+                      className={`
+                        flex items-center gap-1.5 px-2 py-1 rounded
+                        text-[10px] font-mono text-zinc-400 uppercase tracking-wider
+                        ${isPoweredOn ? "hover:bg-zinc-800/50 hover:text-zinc-300" : "opacity-50"}
+                        transition-colors
+                      `}
+                      data-testid="open-history"
+                    >
+                      <History className="w-3 h-3" />
+                      History
+                    </button>
+                  </div>
                   <div className="flex items-center gap-3">
                     <button
                       disabled={!isPoweredOn}
@@ -594,6 +649,28 @@ export function StereoUnit({ stations, isLoading }: StereoUnitProps) {
                     </button>
                   </div>
                 </div>
+                
+                <RecentlyPlayed
+                  isOpen={isHistoryOpen}
+                  onClose={() => setIsHistoryOpen(false)}
+                  onSelectHistory={(entry) => {
+                    setIsHistoryOpen(false);
+                    // Find and select the station from history
+                    if (entry.stationId) {
+                      const station = stations.find(s => s.type === "external" && s.id === entry.stationId);
+                      if (station) {
+                        handleSelectStation(station);
+                        if (isPoweredOn) playStation(station);
+                      }
+                    } else if (entry.userStationId) {
+                      const station = stations.find(s => s.type === "user" && s.id === entry.userStationId);
+                      if (station) {
+                        handleSelectStation(station);
+                        if (isPoweredOn) playStation(station);
+                      }
+                    }
+                  }}
+                />
               </div>
             </div>
 
