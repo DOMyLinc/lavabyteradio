@@ -84,6 +84,9 @@ export default function RadioPlayer() {
 
       <footer className="relative z-10 text-center p-4 text-xs text-muted-foreground">
         <AdBanner />
+        <p className="mt-3 text-sm font-display text-lava-300 italic tracking-wide">
+          "Share your AudioVisuaListic Dreams?"
+        </p>
         <p className="mt-2">Lava Bytes Radio - Streaming Online Radio</p>
       </footer>
     </div>

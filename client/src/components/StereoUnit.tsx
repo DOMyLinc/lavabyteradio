@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect, useCallback } from "react";
-import { SkipBack, SkipForward, Home, Settings, List, Power, Volume2, History } from "lucide-react";
+import { SkipBack, SkipForward, Home, Settings, List, Power, Volume2, History, Sliders } from "lucide-react";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import Hls from "hls.js";
 import { VolumeKnob } from "./VolumeKnob";
@@ -7,6 +7,10 @@ import { NowPlaying } from "./NowPlaying";
 import { StationList } from "./StationList";
 import { PresetButtons } from "./PresetButtons";
 import { RecentlyPlayed } from "./RecentlyPlayed";
+import { AudioVisualizer } from "./AudioVisualizer";
+import { Equalizer } from "./Equalizer";
+import { ShareButton } from "./ShareButton";
+import { useAudioProcessor } from "@/hooks/useAudioProcessor";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import type { UnifiedStation } from "@/pages/RadioPlayer";
@@ -27,11 +31,14 @@ export function StereoUnit({ stations, isLoading }: StereoUnitProps) {
   const [volume, setVolume] = useState(0.7);
   const [isStationListOpen, setIsStationListOpen] = useState(false);
   const [isHistoryOpen, setIsHistoryOpen] = useState(false);
+  const [isEqualizerOpen, setIsEqualizerOpen] = useState(false);
   const [pendingAutoplayStationId, setPendingAutoplayStationId] = useState<number | null>(null);
   const audioRef = useRef<HTMLAudioElement | null>(null);
   const videoRef = useRef<HTMLVideoElement | null>(null);
   const hlsRef = useRef<Hls | null>(null);
   const { toast } = useToast();
+  
+  const { analyser, connect: connectAudioProcessor, updateEQ, resume: resumeAudioProcessor } = useAudioProcessor();
   
   const addToHistoryMutation = useMutation({
     mutationFn: async (entry: InsertPlaybackHistory) => {
@@ -186,6 +193,17 @@ export function StereoUnit({ stations, isLoading }: StereoUnitProps) {
       videoRef.current.volume = volume;
     }
   }, [volume]);
+
+  useEffect(() => {
+    if (isPlaying) {
+      if (audioRef.current) {
+        connectAudioProcessor(audioRef);
+      } else if (videoRef.current) {
+        connectAudioProcessor(videoRef);
+      }
+      resumeAudioProcessor();
+    }
+  }, [isPlaying, connectAudioProcessor, resumeAudioProcessor]);
 
   useEffect(() => {
     return () => {
@@ -565,17 +583,34 @@ export function StereoUnit({ stations, isLoading }: StereoUnitProps) {
                 </div>
 
                 <div className="flex-1 p-3 overflow-hidden">
-                  <NowPlaying
-                    station={currentStation}
-                    isPlaying={isPlaying && isPoweredOn}
-                    isLoading={isStreamLoading}
-                    onPlayToggle={handlePlayToggle}
-                    disabled={!isPoweredOn || !currentStation}
-                    compact
-                    videoRef={videoRef}
-                    hasVideo={!!hasVideo}
-                    currentTrack={currentTrack}
-                  />
+                  <div className="flex gap-3 h-full">
+                    <div className="flex-1 min-w-0">
+                      <NowPlaying
+                        station={currentStation}
+                        isPlaying={isPlaying && isPoweredOn}
+                        isLoading={isStreamLoading}
+                        onPlayToggle={handlePlayToggle}
+                        disabled={!isPoweredOn || !currentStation}
+                        compact
+                        videoRef={videoRef}
+                        hasVideo={!!hasVideo}
+                        currentTrack={currentTrack}
+                      />
+                    </div>
+                    {!hasVideo && (
+                      <div className="w-32 h-full flex flex-col items-center justify-center bg-black/30 rounded border border-zinc-800/50">
+                        <AudioVisualizer
+                          analyser={analyser}
+                          isPlaying={isPlaying && isPoweredOn}
+                          isPoweredOn={isPoweredOn}
+                          width={120}
+                          height={50}
+                          barCount={20}
+                        />
+                        <span className="text-[7px] font-mono text-zinc-600 uppercase tracking-wider mt-1">Spectrum</span>
+                      </div>
+                    )}
+                  </div>
                 </div>
 
                 <div className="px-3 pb-3">
@@ -621,7 +656,13 @@ export function StereoUnit({ stations, isLoading }: StereoUnitProps) {
                     </button>
                   </div>
                   <div className="flex items-center gap-3">
+                    <ShareButton
+                      station={currentStation}
+                      disabled={!isPoweredOn}
+                      compact
+                    />
                     <button
+                      onClick={() => setIsEqualizerOpen(true)}
                       disabled={!isPoweredOn}
                       className={`
                         flex items-center gap-1 px-2 py-1 rounded
@@ -629,10 +670,10 @@ export function StereoUnit({ stations, isLoading }: StereoUnitProps) {
                         ${isPoweredOn ? "hover:bg-zinc-800/50 hover:text-zinc-300" : "opacity-50"}
                         transition-colors
                       `}
-                      data-testid="button-audio"
+                      data-testid="button-equalizer"
                     >
-                      <Volume2 className="w-3 h-3" />
-                      Audio
+                      <Sliders className="w-3 h-3" />
+                      EQ
                     </button>
                     <button
                       disabled={!isPoweredOn}
@@ -670,6 +711,13 @@ export function StereoUnit({ stations, isLoading }: StereoUnitProps) {
                       }
                     }
                   }}
+                />
+                
+                <Equalizer
+                  isOpen={isEqualizerOpen}
+                  onClose={() => setIsEqualizerOpen(false)}
+                  isPoweredOn={isPoweredOn}
+                  onEQChange={(settings) => updateEQ(settings)}
                 />
               </div>
             </div>
