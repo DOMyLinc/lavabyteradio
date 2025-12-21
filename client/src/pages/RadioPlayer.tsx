@@ -4,7 +4,7 @@ import { StereoUnit } from "@/components/StereoUnit";
 import { AdBanner } from "@/components/AdBanner";
 import { Loader2 } from "lucide-react";
 import type { Station, UserStation } from "@shared/schema";
-import mascotImage from "@assets/588496392_1194040775959608_6497226853787014568_n_1766347733869.jpg";
+import mascotImage from "@assets/588496392_1194040775959608_6497226853787014568_n_1766326274153.jpg";
 
 export type UnifiedStation = 
   | (Station & { type: "external" })
@@ -52,22 +52,13 @@ export default function RadioPlayer() {
           </div>
         </div>
 
-        <div className="flex items-center gap-4">
-          <a
-            href="/"
-            className="text-xs text-muted-foreground hover:text-foreground transition-colors"
-            data-testid="home-link"
-          >
-            Home
-          </a>
-          <a
-            href="/admin"
-            className="text-xs text-muted-foreground hover:text-foreground transition-colors"
-            data-testid="admin-link"
-          >
-            Admin
-          </a>
-        </div>
+        <a
+          href="/admin"
+          className="text-xs text-muted-foreground hover:text-foreground transition-colors"
+          data-testid="admin-link"
+        >
+          Admin
+        </a>
       </header>
 
       <main className="flex-1 flex items-center justify-center p-4 md:p-8 relative z-10">

@@ -61,16 +61,15 @@ app.use((req, res, next) => {
   next();
 });
 
-import { seedStations, seedAdminUser } from "./seed";
+import { seedStations } from "./seed";
 
 (async () => {
   // Setup auth before other routes
   await setupAuth(app);
   registerAuthRoutes(app);
   
-  // Seed test stations and admin user
+  // Seed test stations
   await seedStations();
-  await seedAdminUser();
   
   // Register object storage routes for file uploads
   registerObjectStorageRoutes(app);
