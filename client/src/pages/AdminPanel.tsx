@@ -15,7 +15,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Badge } from "@/components/ui/badge";
 import { Checkbox } from "@/components/ui/checkbox";
 import { useToast } from "@/hooks/use-toast";
-import { apiRequest, queryClient } from "@/lib/queryClient";
+import { apiRequest, queryClient, getQueryFn } from "@/lib/queryClient";
 import AdminLogin from "./AdminLogin";
 
 type TabValue = "external" | "user-stations" | "tracks" | "ads" | "admins";
@@ -131,8 +131,9 @@ export default function AdminPanel() {
   const { toast } = useToast();
   const [activeTab, setActiveTab] = useState<TabValue>("external");
 
-  const { data: adminSession, isLoading: checkingAuth, refetch } = useQuery<AdminSession>({
+  const { data: adminSession, isLoading: checkingAuth, refetch } = useQuery<AdminSession | null>({
     queryKey: ["/api/admin/me"],
+    queryFn: getQueryFn({ on401: "returnNull" }),
     retry: false,
   });
 
