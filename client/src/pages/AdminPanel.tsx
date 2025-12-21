@@ -1413,28 +1413,42 @@ function AdminUsersTab() {
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (editingUser) {
-      const updateData: Partial<AdminUserFormData> = {
+      const updateData: Record<string, unknown> = {
         email: formData.email,
-        displayName: formData.displayName || null,
         role: formData.role,
         permissions: formData.permissions,
         isActive: formData.isActive,
       };
-      if (formData.password) {
+      if (formData.displayName.trim()) {
+        updateData.displayName = formData.displayName.trim();
+      } else {
+        updateData.displayName = null;
+      }
+      if (formData.password.trim()) {
         updateData.password = formData.password;
       }
-      updateMutation.mutate({ id: editingUser.id, data: updateData });
+      updateMutation.mutate({ id: editingUser.id, data: updateData as Partial<AdminUserFormData> });
     } else {
-      createMutation.mutate(formData);
+      const createData: Record<string, unknown> = {
+        email: formData.email,
+        password: formData.password,
+        role: formData.role,
+        permissions: formData.permissions,
+        isActive: formData.isActive,
+      };
+      if (formData.displayName.trim()) {
+        createData.displayName = formData.displayName.trim();
+      }
+      createMutation.mutate(createData as AdminUserFormData);
     }
   };
 
-  const togglePermission = (permissionId: string) => {
+  const handlePermissionChange = (permissionId: string, checked: boolean) => {
     setFormData((prev) => ({
       ...prev,
-      permissions: prev.permissions.includes(permissionId)
-        ? prev.permissions.filter((p) => p !== permissionId)
-        : [...prev.permissions, permissionId],
+      permissions: checked
+        ? [...prev.permissions, permissionId]
+        : prev.permissions.filter((p) => p !== permissionId),
     }));
   };
 
@@ -1536,7 +1550,7 @@ function AdminUsersTab() {
               <div className="space-y-2">
                 {availablePermissions.map((perm) => (
                   <div key={perm.id} className="flex items-center gap-2">
-                    <Checkbox id={`perm-${perm.id}`} checked={formData.permissions.includes(perm.id)} onCheckedChange={() => togglePermission(perm.id)} data-testid={`checkbox-perm-${perm.id}`} />
+                    <Checkbox id={`perm-${perm.id}`} checked={formData.permissions.includes(perm.id)} onCheckedChange={(checked) => handlePermissionChange(perm.id, !!checked)} data-testid={`checkbox-perm-${perm.id}`} />
                     <Label htmlFor={`perm-${perm.id}`} className="text-sm font-normal cursor-pointer">{perm.label}</Label>
                   </div>
                 ))}
