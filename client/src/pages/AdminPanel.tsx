@@ -131,9 +131,19 @@ export default function AdminPanel() {
   const { toast } = useToast();
   const [activeTab, setActiveTab] = useState<TabValue>("external");
 
-  const { data: adminSession, isLoading: checkingAuth, refetch } = useQuery<AdminSession>({
+  const { data: adminSession, isLoading: checkingAuth, error, refetch } = useQuery<AdminSession | null>({
     queryKey: ["/api/admin/me"],
     retry: false,
+    queryFn: async () => {
+      const res = await fetch("/api/admin/me", { credentials: "include" });
+      if (res.status === 401) {
+        return null;
+      }
+      if (!res.ok) {
+        throw new Error("Failed to check auth");
+      }
+      return res.json();
+    },
   });
 
   const logoutMutation = useMutation({
@@ -1439,7 +1449,7 @@ function AdminUsersTab() {
       if (formData.displayName.trim()) {
         createData.displayName = formData.displayName.trim();
       }
-      createMutation.mutate(createData as AdminUserFormData);
+      createMutation.mutate(createData as unknown as AdminUserFormData);
     }
   };
 
