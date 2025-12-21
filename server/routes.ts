@@ -590,15 +590,22 @@ export async function registerRoutes(
       (req.session as any).adminRole = admin.role;
       (req.session as any).adminPermissions = admin.permissions;
 
-      res.json({ 
-        message: "Login successful",
-        admin: {
-          id: admin.id,
-          email: admin.email,
-          displayName: admin.displayName,
-          role: admin.role,
-          permissions: admin.permissions
+      // Save session explicitly
+      req.session.save((err) => {
+        if (err) {
+          console.error("Failed to save session:", err);
+          return res.status(500).json({ error: "Login failed" });
         }
+        res.json({ 
+          message: "Login successful",
+          admin: {
+            id: admin.id,
+            email: admin.email,
+            displayName: admin.displayName,
+            role: admin.role,
+            permissions: admin.permissions
+          }
+        });
       });
     } catch (error) {
       console.error("Failed to admin login:", error);
