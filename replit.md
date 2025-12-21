@@ -19,10 +19,15 @@ Preferred communication style: Simple, everyday language.
 - **Build Tool**: Vite with React plugin
 
 The frontend follows a component-based architecture with:
-- Pages in `client/src/pages/` (RadioPlayer, AdminPanel)
+- Pages in `client/src/pages/` (LandingPage, PublicPlayer, AdminPanel)
 - Reusable UI components in `client/src/components/`
 - Custom hooks in `client/src/hooks/`
 - Shared utilities in `client/src/lib/`
+
+### Page Structure
+- `/` - LandingPage: Marketing page with unified login dialog (Sign In, Sign Up, Admin tabs)
+- `/player` - PublicPlayer: Public radio player for listeners (no admin access)
+- `/admin` - AdminPanel: Protected admin panel with session-based authentication
 
 ### Backend Architecture
 - **Runtime**: Node.js with Express.js
