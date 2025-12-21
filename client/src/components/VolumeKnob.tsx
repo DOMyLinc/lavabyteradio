@@ -1,13 +1,13 @@
 import { useRef, useState, useCallback, useEffect } from "react";
-import { Volume2, VolumeX, Volume1 } from "lucide-react";
 
 interface VolumeKnobProps {
   volume: number;
   onChange: (volume: number) => void;
   disabled?: boolean;
+  compact?: boolean;
 }
 
-export function VolumeKnob({ volume, onChange, disabled = false }: VolumeKnobProps) {
+export function VolumeKnob({ volume, onChange, disabled = false, compact = false }: VolumeKnobProps) {
   const knobRef = useRef<HTMLDivElement>(null);
   const [isDragging, setIsDragging] = useState(false);
   const startAngleRef = useRef(0);
@@ -70,7 +70,70 @@ export function VolumeKnob({ volume, onChange, disabled = false }: VolumeKnobPro
   const rotation = -135 + (volume * 270);
   const displayVolume = Math.round(volume * 100);
 
-  const VolumeIcon = volume === 0 ? VolumeX : volume < 0.5 ? Volume1 : Volume2;
+  if (compact) {
+    return (
+      <div
+        ref={knobRef}
+        tabIndex={disabled ? -1 : 0}
+        className={`
+          relative w-full h-full rounded-full cursor-pointer select-none
+          bg-gradient-to-b from-zinc-500 to-zinc-800
+          shadow-[inset_0_1px_0_rgba(255,255,255,0.2),inset_0_-1px_2px_rgba(0,0,0,0.4)]
+          ${isDragging ? "ring-1 ring-lava-400" : ""}
+          ${disabled ? "opacity-50 cursor-not-allowed" : ""}
+          transition-shadow duration-200
+          focus:outline-none focus:ring-1 focus:ring-lava-400
+        `}
+        onMouseDown={(e) => handleStart(e.clientX, e.clientY)}
+        onTouchStart={(e) => {
+          if (e.touches[0]) handleStart(e.touches[0].clientX, e.touches[0].clientY);
+        }}
+        onKeyDown={(e) => {
+          if (disabled) return;
+          if (e.key === "ArrowUp" || e.key === "ArrowRight") {
+            e.preventDefault();
+            onChange(Math.min(1, volume + 0.05));
+          } else if (e.key === "ArrowDown" || e.key === "ArrowLeft") {
+            e.preventDefault();
+            onChange(Math.max(0, volume - 0.05));
+          }
+        }}
+        data-testid="volume-knob"
+        role="slider"
+        aria-label="Volume control"
+        aria-valuemin={0}
+        aria-valuemax={100}
+        aria-valuenow={displayVolume}
+      >
+        <div className="absolute inset-1 rounded-full bg-gradient-to-b from-zinc-600 to-zinc-900 flex items-center justify-center">
+          <div
+            className="absolute w-0.5 h-4 bg-lava-400 rounded-full shadow-[0_0_4px_rgba(255,100,50,0.5)]"
+            style={{ 
+              transform: `rotate(${rotation}deg)`,
+              transformOrigin: "center 16px",
+              top: "3px",
+              left: "calc(50% - 1px)"
+            }}
+          />
+        </div>
+        {[0, 1, 2, 3, 4, 5, 6, 7, 8].map((i) => {
+          const angle = -135 + (i * 33.75);
+          return (
+            <div
+              key={i}
+              className="absolute w-px h-1 bg-zinc-400"
+              style={{
+                left: "50%",
+                top: "0",
+                transformOrigin: "center 24px",
+                transform: `translateX(-50%) rotate(${angle}deg)`,
+              }}
+            />
+          );
+        })}
+      </div>
+    );
+  }
 
   return (
     <div className="flex flex-col items-center gap-2">
@@ -135,10 +198,7 @@ export function VolumeKnob({ volume, onChange, disabled = false }: VolumeKnobPro
         })}
       </div>
 
-      <div className="flex items-center gap-1 text-muted-foreground">
-        <VolumeIcon className="w-4 h-4" />
-        <span className="text-xs font-mono uppercase tracking-wider">VOL</span>
-      </div>
+      <span className="text-xs font-mono uppercase tracking-wider text-muted-foreground">VOL</span>
     </div>
   );
 }

@@ -1,4 +1,3 @@
-import { Button } from "@/components/ui/button";
 import type { Station } from "@shared/schema";
 
 interface PresetButtonsProps {
@@ -6,6 +5,7 @@ interface PresetButtonsProps {
   currentStationId: number | null;
   onSelectStation: (station: Station) => void;
   disabled?: boolean;
+  compact?: boolean;
 }
 
 export function PresetButtons({
@@ -13,6 +13,7 @@ export function PresetButtons({
   currentStationId,
   onSelectStation,
   disabled = false,
+  compact = false,
 }: PresetButtonsProps) {
   const presetStations = stations
     .filter((s) => s.presetNumber !== null && s.presetNumber >= 1 && s.presetNumber <= 5)
@@ -22,6 +23,48 @@ export function PresetButtons({
     const presetNum = i + 1;
     return presetStations.find((s) => s.presetNumber === presetNum) || null;
   });
+
+  if (compact) {
+    return (
+      <div className="flex items-center gap-1.5">
+        <span className="text-[9px] font-mono uppercase tracking-wider text-zinc-500 mr-1">
+          Presets
+        </span>
+        {presetSlots.map((station, index) => {
+          const presetNum = index + 1;
+          const isActive = station && station.id === currentStationId;
+          const hasStation = station !== null;
+
+          return (
+            <button
+              key={presetNum}
+              onClick={() => station && onSelectStation(station)}
+              disabled={disabled || !hasStation}
+              className={`
+                relative min-w-[2rem] h-7 px-2 rounded font-mono text-xs font-semibold
+                transition-all duration-150
+                ${isActive
+                  ? "bg-lava-500 text-white shadow-[0_0_8px_hsl(var(--lava-glow)/0.5)]"
+                  : hasStation
+                    ? "bg-zinc-800 text-zinc-300 hover:bg-zinc-700"
+                    : "bg-zinc-900 text-zinc-700 cursor-not-allowed"
+                }
+                ${!disabled && hasStation ? "active:shadow-[inset_0_1px_3px_rgba(0,0,0,0.4)]" : ""}
+                border border-zinc-700
+              `}
+              data-testid={`preset-button-${presetNum}`}
+              aria-label={station ? `Preset ${presetNum}: ${station.name}` : `Preset ${presetNum}: Empty`}
+            >
+              <span className="relative z-10">{presetNum}</span>
+              {isActive && (
+                <div className="absolute top-0.5 right-0.5 w-1 h-1 rounded-full bg-lava-300 animate-led-blink shadow-led" />
+              )}
+            </button>
+          );
+        })}
+      </div>
+    );
+  }
 
   return (
     <div className="flex flex-col gap-2">
