@@ -1,9 +1,11 @@
 import { useState, useRef, useEffect, useCallback } from "react";
 import { SkipBack, SkipForward, Home, Settings, List, Power, Volume2 } from "lucide-react";
+import Hls from "hls.js";
 import { VolumeKnob } from "./VolumeKnob";
 import { NowPlaying } from "./NowPlaying";
 import { StationList } from "./StationList";
 import { PresetButtons } from "./PresetButtons";
+import { useToast } from "@/hooks/use-toast";
 import type { Station } from "@shared/schema";
 
 interface StereoUnitProps {
@@ -19,6 +21,11 @@ export function StereoUnit({ stations, isLoading }: StereoUnitProps) {
   const [volume, setVolume] = useState(0.7);
   const [isStationListOpen, setIsStationListOpen] = useState(false);
   const audioRef = useRef<HTMLAudioElement | null>(null);
+  const videoRef = useRef<HTMLVideoElement | null>(null);
+  const hlsRef = useRef<Hls | null>(null);
+  const { toast } = useToast();
+
+  const hasVideo = currentStation?.videoStreamUrl;
 
   useEffect(() => {
     if (stations.length > 0 && !currentStation) {
@@ -67,34 +74,136 @@ export function StereoUnit({ stations, isLoading }: StereoUnitProps) {
     if (audioRef.current) {
       audioRef.current.volume = volume;
     }
+    if (videoRef.current) {
+      videoRef.current.volume = volume;
+    }
   }, [volume]);
 
+  useEffect(() => {
+    return () => {
+      if (hlsRef.current) {
+        hlsRef.current.destroy();
+        hlsRef.current = null;
+      }
+    };
+  }, []);
+
+  const cleanupVideo = useCallback(() => {
+    if (hlsRef.current) {
+      hlsRef.current.destroy();
+      hlsRef.current = null;
+    }
+    if (videoRef.current) {
+      videoRef.current.pause();
+      videoRef.current.removeAttribute("src");
+      videoRef.current.load();
+    }
+  }, []);
+
+  const setupVideoHls = useCallback((video: HTMLVideoElement, url: string) => {
+    if (hlsRef.current) {
+      hlsRef.current.destroy();
+      hlsRef.current = null;
+    }
+
+    if (url.includes(".m3u8") && Hls.isSupported()) {
+      const hls = new Hls({
+        enableWorker: true,
+        lowLatencyMode: true,
+      });
+      hlsRef.current = hls;
+      hls.loadSource(url);
+      hls.attachMedia(video);
+      hls.on(Hls.Events.MANIFEST_PARSED, () => {
+        setIsStreamLoading(false);
+      });
+      hls.on(Hls.Events.ERROR, (_, data) => {
+        if (data.fatal) {
+          console.error("HLS fatal error:", data);
+          hls.destroy();
+          hlsRef.current = null;
+          if (videoRef.current) {
+            videoRef.current.pause();
+            videoRef.current.removeAttribute("src");
+            videoRef.current.load();
+          }
+          setIsStreamLoading(false);
+          setIsPlaying(false);
+          toast({
+            title: "Stream Error",
+            description: "Failed to load video stream. Please try again.",
+            variant: "destructive",
+          });
+        }
+      });
+    } else if (video.canPlayType("application/vnd.apple.mpegurl")) {
+      video.src = url;
+    } else {
+      video.src = url;
+    }
+  }, [toast]);
+
   const playStation = useCallback(async (station: Station) => {
-    if (!audioRef.current || !isPoweredOn) return;
+    if (!isPoweredOn) return;
 
-    const audio = audioRef.current;
+    setIsStreamLoading(true);
 
-    if (audio.src !== station.streamUrl) {
-      audio.src = station.streamUrl;
+    if (station.videoStreamUrl && videoRef.current) {
+      if (audioRef.current) {
+        audioRef.current.pause();
+        audioRef.current.src = "";
+      }
+
+      const video = videoRef.current;
+      setupVideoHls(video, station.videoStreamUrl);
+
+      try {
+        await video.play();
+        setIsPlaying(true);
+      } catch (error) {
+        console.error("Failed to play video:", error);
+        setIsPlaying(false);
+        toast({
+          title: "Playback Error",
+          description: "Failed to start video playback.",
+          variant: "destructive",
+        });
+      } finally {
+        setIsStreamLoading(false);
+      }
+    } else if (audioRef.current) {
+      cleanupVideo();
+
+      const audio = audioRef.current;
+      if (audio.src !== station.streamUrl) {
+        audio.src = station.streamUrl;
+      }
+
+      try {
+        await audio.play();
+        setIsPlaying(true);
+      } catch (error) {
+        console.error("Failed to play station:", error);
+        setIsPlaying(false);
+        toast({
+          title: "Playback Error",
+          description: "Failed to play this station.",
+          variant: "destructive",
+        });
+      } finally {
+        setIsStreamLoading(false);
+      }
     }
-
-    try {
-      setIsStreamLoading(true);
-      await audio.play();
-      setIsPlaying(true);
-    } catch (error) {
-      console.error("Failed to play station:", error);
-      setIsPlaying(false);
-    } finally {
-      setIsStreamLoading(false);
-    }
-  }, [isPoweredOn]);
+  }, [isPoweredOn, setupVideoHls, cleanupVideo, toast]);
 
   const pausePlayback = useCallback(() => {
     if (audioRef.current) {
       audioRef.current.pause();
-      setIsPlaying(false);
     }
+    if (videoRef.current) {
+      videoRef.current.pause();
+    }
+    setIsPlaying(false);
   }, []);
 
   const handleSelectStation = useCallback((station: Station) => {
@@ -285,6 +394,8 @@ export function StereoUnit({ stations, isLoading }: StereoUnitProps) {
                     onPlayToggle={handlePlayToggle}
                     disabled={!isPoweredOn || !currentStation}
                     compact
+                    videoRef={videoRef}
+                    hasVideo={!!hasVideo}
                   />
                 </div>
 
