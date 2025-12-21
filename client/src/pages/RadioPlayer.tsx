@@ -53,11 +53,11 @@ export default function RadioPlayer() {
         </div>
 
         <a
-          href="/admin"
+          href="/manage"
           className="text-xs text-muted-foreground hover:text-foreground transition-colors"
-          data-testid="admin-link"
+          data-testid="manage-link"
         >
-          Admin
+          Manage
         </a>
       </header>
 
