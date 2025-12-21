@@ -161,6 +161,7 @@ export function StereoUnit({ stations, isLoading }: StereoUnitProps) {
     if (!audioRef.current) {
       audioRef.current = new Audio();
       audioRef.current.preload = "none";
+      audioRef.current.crossOrigin = "anonymous";
     }
 
     const audio = audioRef.current;
@@ -598,14 +599,14 @@ export function StereoUnit({ stations, isLoading }: StereoUnitProps) {
                       />
                     </div>
                     {!hasVideo && (
-                      <div className="w-32 h-full flex flex-col items-center justify-center bg-black/30 rounded border border-zinc-800/50">
+                      <div className="w-48 h-full flex flex-col items-center justify-center bg-black/30 rounded border border-zinc-800/50">
                         <AudioVisualizer
                           analyser={analyser}
                           isPlaying={isPlaying && isPoweredOn}
                           isPoweredOn={isPoweredOn}
-                          width={120}
+                          width={180}
                           height={50}
-                          barCount={20}
+                          barCount={32}
                         />
                         <span className="text-[7px] font-mono text-zinc-600 uppercase tracking-wider mt-1">Spectrum</span>
                       </div>
