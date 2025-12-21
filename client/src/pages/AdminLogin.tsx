@@ -3,7 +3,6 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { LavaBackground } from "@/components/LavaBackground";
 import { Radio, Lock, Mail, ArrowLeft, Eye, EyeOff } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { useMutation } from "@tanstack/react-query";
@@ -55,8 +54,7 @@ export default function AdminLogin({ onLoginSuccess }: AdminLoginProps) {
   };
 
   return (
-    <div className="min-h-screen flex flex-col relative overflow-hidden bg-background">
-      <LavaBackground />
+    <div className="min-h-screen flex flex-col relative overflow-hidden bg-gradient-to-b from-background to-background/95">
       
       <header className="relative z-10 p-4">
         <Link href="/">
