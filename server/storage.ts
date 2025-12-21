@@ -5,8 +5,7 @@ import {
   type StationTrack, type InsertStationTrack, type UpdateStationTrack,
   type AdCampaign, type InsertAdCampaign, type UpdateAdCampaign,
   type PlaybackHistory, type InsertPlaybackHistory,
-  type Member,
-  users, stations, userStations, stationTracks, adCampaigns, playbackHistory, members
+  users, stations, userStations, stationTracks, adCampaigns, playbackHistory
 } from "@shared/schema";
 import { db } from "./db";
 import { eq, asc, desc, and, lte, gte, or, isNull } from "drizzle-orm";
@@ -48,11 +47,6 @@ export interface IStorage {
   getRecentHistory(limit?: number): Promise<PlaybackHistory[]>;
   addToHistory(entry: InsertPlaybackHistory): Promise<PlaybackHistory>;
   clearHistory(): Promise<void>;
-
-  // Members
-  getMemberByEmail(email: string): Promise<Member | undefined>;
-  createMember(data: { email: string; passwordHash: string; displayName?: string; verificationToken?: string; verificationExpires?: Date }): Promise<Member>;
-  verifyMember(token: string): Promise<Member | undefined>;
 }
 
 export class DatabaseStorage implements IStorage {
@@ -212,29 +206,6 @@ export class DatabaseStorage implements IStorage {
 
   async clearHistory(): Promise<void> {
     await db.delete(playbackHistory);
-  }
-
-  // Members
-  async getMemberByEmail(email: string): Promise<Member | undefined> {
-    const [member] = await db.select().from(members).where(eq(members.email, email));
-    return member || undefined;
-  }
-
-  async createMember(data: { email: string; passwordHash: string; displayName?: string; verificationToken?: string; verificationExpires?: Date }): Promise<Member> {
-    const [created] = await db.insert(members).values(data).returning();
-    return created;
-  }
-
-  async verifyMember(token: string): Promise<Member | undefined> {
-    const [member] = await db.select().from(members).where(eq(members.verificationToken, token));
-    if (!member || !member.verificationExpires || member.verificationExpires < new Date()) {
-      return undefined;
-    }
-    const [updated] = await db.update(members)
-      .set({ isVerified: true, verificationToken: null })
-      .where(eq(members.id, member.id))
-      .returning();
-    return updated;
   }
 }
 

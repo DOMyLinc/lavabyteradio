@@ -10,9 +10,7 @@ import { RecentlyPlayed } from "./RecentlyPlayed";
 import { AudioVisualizer } from "./AudioVisualizer";
 import { Equalizer } from "./Equalizer";
 import { ShareButton } from "./ShareButton";
-import { OfflineIndicator } from "./OfflineIndicator";
 import { useAudioProcessor } from "@/hooks/useAudioProcessor";
-import { useMediaSession, cacheAudioForOffline } from "@/hooks/useMediaSession";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import type { UnifiedStation } from "@/pages/RadioPlayer";
@@ -44,7 +42,7 @@ export function StereoUnit({ stations, isLoading }: StereoUnitProps) {
   
   const addToHistoryMutation = useMutation({
     mutationFn: async (entry: InsertPlaybackHistory) => {
-      return apiRequest("POST", "/api/history", entry);
+      return apiRequest<PlaybackHistory>("POST", "/api/history", entry);
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/history"] });
@@ -107,10 +105,7 @@ export function StereoUnit({ stations, isLoading }: StereoUnitProps) {
     }
     
     const audio = audioRef.current;
-    audio.crossOrigin = "anonymous";
     audio.src = track.mediaUrl;
-    
-    cacheAudioForOffline(track.mediaUrl);
     
     try {
       await audio.play();
@@ -166,7 +161,6 @@ export function StereoUnit({ stations, isLoading }: StereoUnitProps) {
     if (!audioRef.current) {
       audioRef.current = new Audio();
       audioRef.current.preload = "none";
-      audioRef.current.crossOrigin = "anonymous";
     }
 
     const audio = audioRef.current;
@@ -332,7 +326,6 @@ export function StereoUnit({ stations, isLoading }: StereoUnitProps) {
       cleanupVideo();
 
       const audio = audioRef.current;
-      audio.crossOrigin = "anonymous";
       if (audio.src !== station.streamUrl) {
         audio.src = station.streamUrl;
       }
@@ -461,23 +454,9 @@ export function StereoUnit({ stations, isLoading }: StereoUnitProps) {
     }
   }, [isPoweredOn, stations, currentStation, isPlaying, playStation]);
 
-  useMediaSession({
-    title: currentTrack?.title || currentStation?.name || "Lava Bytes Radio",
-    artist: currentTrack?.artist ?? (currentStation?.type === "external" ? (currentStation.genre ?? undefined) : undefined),
-    album: currentStation?.name || "Lava Bytes Radio",
-    artwork: currentStation?.logoUrl ?? undefined,
-    isPlaying,
-    onPlay: handlePlayToggle,
-    onPause: handlePlayToggle,
-    onPreviousTrack: handlePrevStation,
-    onNextTrack: handleNextStation,
-  });
-
   const activeStations = stations.filter((s) => s.isActive);
 
   return (
-    <>
-      <OfflineIndicator />
     <div className="w-full max-w-4xl mx-auto px-4">
       <div
         className="relative rounded-lg overflow-hidden"
@@ -619,14 +598,14 @@ export function StereoUnit({ stations, isLoading }: StereoUnitProps) {
                       />
                     </div>
                     {!hasVideo && (
-                      <div className="w-48 h-full flex flex-col items-center justify-center bg-black/30 rounded border border-zinc-800/50">
+                      <div className="w-32 h-full flex flex-col items-center justify-center bg-black/30 rounded border border-zinc-800/50">
                         <AudioVisualizer
                           analyser={analyser}
                           isPlaying={isPlaying && isPoweredOn}
                           isPoweredOn={isPoweredOn}
-                          width={180}
+                          width={120}
                           height={50}
-                          barCount={32}
+                          barCount={20}
                         />
                         <span className="text-[7px] font-mono text-zinc-600 uppercase tracking-wider mt-1">Spectrum</span>
                       </div>
@@ -771,6 +750,5 @@ export function StereoUnit({ stations, isLoading }: StereoUnitProps) {
         isOpen={isStationListOpen}
       />
     </div>
-    </>
   );
 }

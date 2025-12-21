@@ -3,17 +3,15 @@ import { queryClient } from "./lib/queryClient";
 import { QueryClientProvider } from "@tanstack/react-query";
 import { Toaster } from "@/components/ui/toaster";
 import { TooltipProvider } from "@/components/ui/tooltip";
-import LandingPage from "@/pages/LandingPage";
 import RadioPlayer from "@/pages/RadioPlayer";
-import StationManager from "@/pages/StationManager";
+import AdminPanel from "@/pages/AdminPanel";
 import NotFound from "@/pages/not-found";
 
 function Router() {
   return (
     <Switch>
-      <Route path="/" component={LandingPage} />
-      <Route path="/player" component={RadioPlayer} />
-      <Route path="/manage" component={StationManager} />
+      <Route path="/" component={RadioPlayer} />
+      <Route path="/admin" component={AdminPanel} />
       <Route component={NotFound} />
     </Switch>
   );

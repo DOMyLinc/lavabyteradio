@@ -29,24 +29,21 @@ export function useAudioProcessor() {
 
   const connect = useCallback((elementRef: MediaElementRef) => {
     const audioElement = elementRef.current;
-    console.log("useAudioProcessor.connect called", { audioElement, alreadyConnected: connectedElementRef.current === audioElement });
     if (!audioElement || connectedElementRef.current === audioElement) {
       return;
     }
 
-    if (audioContextRef.current && audioContextRef.current.state !== "closed") {
-      console.log("Closing existing audio context");
+    if (audioContextRef.current) {
       audioContextRef.current.close();
+      audioContextRef.current = null;
+      sourceRef.current = null;
+      analyserRef.current = null;
+      bassFilterRef.current = null;
+      midFilterRef.current = null;
+      trebleFilterRef.current = null;
     }
-    audioContextRef.current = null;
-    sourceRef.current = null;
-    analyserRef.current = null;
-    bassFilterRef.current = null;
-    midFilterRef.current = null;
-    trebleFilterRef.current = null;
 
     try {
-      console.log("Creating new AudioContext and connecting audio element");
       const audioContext = new (window.AudioContext || (window as any).webkitAudioContext)();
       
       const source = audioContext.createMediaElementSource(audioElement);
@@ -85,13 +82,12 @@ export function useAudioProcessor() {
       trebleFilterRef.current = trebleFilter;
       connectedElementRef.current = audioElement;
 
-      console.log("Audio processor connected successfully", { analyser, audioContext });
       setState({
         analyser,
         isConnected: true,
       });
     } catch (error) {
-      console.error("useAudioProcessor: Could not create audio context", error);
+      console.warn("useAudioProcessor: Could not create audio context", error);
       setState({
         analyser: null,
         isConnected: false,

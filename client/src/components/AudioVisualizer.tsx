@@ -60,7 +60,7 @@ export function AudioVisualizer({
     }
 
     animationRef.current = requestAnimationFrame(draw);
-  }, [analyser, barCount, barGap, barColor]);
+  }, [barCount, barGap, barColor]);
 
   const drawIdle = useCallback(() => {
     const canvas = canvasRef.current;
