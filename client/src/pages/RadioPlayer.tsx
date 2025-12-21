@@ -4,7 +4,7 @@ import { StereoUnit } from "@/components/StereoUnit";
 import { AdBanner } from "@/components/AdBanner";
 import { Loader2 } from "lucide-react";
 import type { Station, UserStation } from "@shared/schema";
-import mascotImage from "@assets/588496392_1194040775959608_6497226853787014568_n_1766326274153.jpg";
+import mascotImage from "@assets/588496392_1194040775959608_6497226853787014568_n_1766347733869.jpg";
 
 export type UnifiedStation = 
   | (Station & { type: "external" })

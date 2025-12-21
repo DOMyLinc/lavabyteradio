@@ -159,6 +159,35 @@ export const insertMemberSchema = createInsertSchema(members).omit({
 export type InsertMember = z.infer<typeof insertMemberSchema>;
 export type Member = typeof members.$inferSelect;
 
+// Admin users for panel access
+export const adminUsers = pgTable("admin_users", {
+  id: integer("id").primaryKey().generatedAlwaysAsIdentity(),
+  email: text("email").notNull().unique(),
+  passwordHash: text("password_hash").notNull(),
+  displayName: text("display_name"),
+  role: text("role").notNull().default("admin"), // "super_admin" or "admin"
+  permissions: text("permissions").array().notNull().default(sql`ARRAY['stations', 'user_stations', 'tracks', 'ads']::text[]`),
+  isActive: boolean("is_active").default(true).notNull(),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+  lastLoginAt: timestamp("last_login_at"),
+});
+
+export const insertAdminUserSchema = createInsertSchema(adminUsers).omit({
+  id: true,
+  createdAt: true,
+  lastLoginAt: true,
+});
+
+export const updateAdminUserSchema = createInsertSchema(adminUsers).omit({
+  id: true,
+  createdAt: true,
+  lastLoginAt: true,
+}).partial();
+
+export type InsertAdminUser = z.infer<typeof insertAdminUserSchema>;
+export type UpdateAdminUser = z.infer<typeof updateAdminUserSchema>;
+export type AdminUser = typeof adminUsers.$inferSelect;
+
 // Relations
 export const stationsRelations = relations(stations, ({}) => ({}));
 

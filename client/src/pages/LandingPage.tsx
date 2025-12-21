@@ -12,7 +12,7 @@ import { Play, Radio, Headphones, Smartphone, Monitor, Crown, Users, Music, Zap,
 import { useToast } from "@/hooks/use-toast";
 import { useMutation } from "@tanstack/react-query";
 import { apiRequest } from "@/lib/queryClient";
-import mascotImage from "@assets/generated_images/lava_radio_mascot_character.png";
+import mascotImage from "@assets/588496392_1194040775959608_6497226853787014568_n_1766347733869.jpg";
 
 export default function LandingPage() {
   const [email, setEmail] = useState("");
