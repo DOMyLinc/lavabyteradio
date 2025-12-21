@@ -105,6 +105,7 @@ export function StereoUnit({ stations, isLoading }: StereoUnitProps) {
     }
     
     const audio = audioRef.current;
+    audio.crossOrigin = "anonymous";
     audio.src = track.mediaUrl;
     
     try {
@@ -327,6 +328,7 @@ export function StereoUnit({ stations, isLoading }: StereoUnitProps) {
       cleanupVideo();
 
       const audio = audioRef.current;
+      audio.crossOrigin = "anonymous";
       if (audio.src !== station.streamUrl) {
         audio.src = station.streamUrl;
       }
