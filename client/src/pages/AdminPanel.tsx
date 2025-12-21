@@ -55,40 +55,42 @@ function LoginForm({ onSuccess }: { onSuccess: () => void }) {
   });
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-background p-4">
-      <Card className="w-full max-w-md">
+    <div className="min-h-screen flex items-center justify-center bg-slate-900 p-4">
+      <Card className="w-full max-w-md bg-slate-800 border-slate-700">
         <CardHeader className="text-center">
-          <CardTitle className="flex items-center justify-center gap-2">
-            <Shield className="h-6 w-6" />
+          <CardTitle className="flex items-center justify-center gap-2 text-white">
+            <Shield className="h-6 w-6 text-orange-400" />
             Admin Login
           </CardTitle>
-          <CardDescription>Sign in to access the admin panel</CardDescription>
+          <CardDescription className="text-slate-300">Sign in to access the admin panel</CardDescription>
         </CardHeader>
         <CardContent>
           <form onSubmit={(e) => { e.preventDefault(); loginMutation.mutate(); }} className="space-y-4">
             <div className="space-y-2">
-              <Label htmlFor="email">Email</Label>
+              <Label htmlFor="email" className="text-slate-200">Email</Label>
               <Input
                 id="email"
                 type="email"
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
                 placeholder="admin@example.com"
+                className="bg-slate-700 border-slate-600 text-white placeholder:text-slate-400"
                 data-testid="input-admin-email"
               />
             </div>
             <div className="space-y-2">
-              <Label htmlFor="password">Password</Label>
+              <Label htmlFor="password" className="text-slate-200">Password</Label>
               <Input
                 id="password"
                 type="password"
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
                 placeholder="Enter password"
+                className="bg-slate-700 border-slate-600 text-white placeholder:text-slate-400"
                 data-testid="input-admin-password"
               />
             </div>
-            <Button type="submit" className="w-full" disabled={loginMutation.isPending} data-testid="button-admin-login">
+            <Button type="submit" className="w-full bg-orange-500 hover:bg-orange-600 text-white" disabled={loginMutation.isPending} data-testid="button-admin-login">
               {loginMutation.isPending ? "Signing in..." : "Sign In"}
             </Button>
           </form>
@@ -775,8 +777,8 @@ export default function AdminPanel() {
 
   if (isLoading) {
     return (
-      <div className="min-h-screen flex items-center justify-center">
-        <RefreshCw className="h-8 w-8 animate-spin text-muted-foreground" />
+      <div className="min-h-screen flex items-center justify-center bg-slate-900">
+        <RefreshCw className="h-8 w-8 animate-spin text-orange-400" />
       </div>
     );
   }
@@ -786,21 +788,21 @@ export default function AdminPanel() {
   }
 
   return (
-    <div className="min-h-screen bg-background">
-      <header className="sticky top-0 z-50 border-b bg-background/95 backdrop-blur">
+    <div className="min-h-screen bg-slate-900 text-white">
+      <header className="sticky top-0 z-50 border-b border-slate-700 bg-slate-800/95 backdrop-blur">
         <div className="container flex h-14 items-center justify-between gap-4 px-4">
           <div className="flex items-center gap-2">
-            <Settings className="h-5 w-5" />
+            <Settings className="h-5 w-5 text-orange-400" />
             <span className="font-semibold">Admin Panel</span>
           </div>
           <div className="flex items-center gap-4">
-            <span className="text-sm text-muted-foreground hidden sm:inline">
+            <span className="text-sm text-slate-300 hidden sm:inline">
               {session.displayName || session.email}
               {session.role === "super_admin" && (
-                <Badge variant="default" className="ml-2">Super Admin</Badge>
+                <Badge className="ml-2 bg-orange-500 text-white">Super Admin</Badge>
               )}
             </span>
-            <Button variant="ghost" size="sm" onClick={() => logoutMutation.mutate()} data-testid="button-admin-logout">
+            <Button variant="ghost" size="sm" onClick={() => logoutMutation.mutate()} className="text-slate-200 hover:text-white hover:bg-slate-700" data-testid="button-admin-logout">
               <LogOut className="h-4 w-4 mr-1" />
               Logout
             </Button>
