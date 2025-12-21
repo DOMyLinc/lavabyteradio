@@ -52,13 +52,22 @@ export default function RadioPlayer() {
           </div>
         </div>
 
-        <a
-          href="/admin"
-          className="text-xs text-muted-foreground hover:text-foreground transition-colors"
-          data-testid="admin-link"
-        >
-          Admin
-        </a>
+        <div className="flex items-center gap-4">
+          <a
+            href="/"
+            className="text-xs text-muted-foreground hover:text-foreground transition-colors"
+            data-testid="home-link"
+          >
+            Home
+          </a>
+          <a
+            href="/admin"
+            className="text-xs text-muted-foreground hover:text-foreground transition-colors"
+            data-testid="admin-link"
+          >
+            Admin
+          </a>
+        </div>
       </header>
 
       <main className="flex-1 flex items-center justify-center p-4 md:p-8 relative z-10">
