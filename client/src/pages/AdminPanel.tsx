@@ -280,25 +280,33 @@ function StationForm({ station, onSave, isPending }: { station?: Station; onSave
 
   return (
     <form onSubmit={handleSubmit} className="space-y-4">
-      {!station && approvedStations.length > 0 && (
+      {!station && (
         <div className="space-y-2">
           <Label>Select Approved Station (optional)</Label>
-          <Select value={selectedApprovedId} onValueChange={handleApprovedSelect}>
-            <SelectTrigger data-testid="select-approved-station">
-              <SelectValue placeholder="Choose an approved station or enter manually" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="manual">Enter manually</SelectItem>
-              {approvedStations.map((s) => (
-                <SelectItem key={s.id} value={s.id.toString()}>
-                  {s.name} {s.genre ? `(${s.genre})` : ""}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-          <p className="text-xs text-muted-foreground">
-            Select a pre-approved station to auto-fill details, or enter manually
-          </p>
+          {approvedStations.length > 0 ? (
+            <>
+              <Select value={selectedApprovedId} onValueChange={handleApprovedSelect}>
+                <SelectTrigger data-testid="select-approved-station">
+                  <SelectValue placeholder="Choose an approved station or enter manually" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="manual">Enter manually</SelectItem>
+                  {approvedStations.map((s) => (
+                    <SelectItem key={s.id} value={s.id.toString()}>
+                      {s.name} {s.genre ? `(${s.genre})` : ""}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              <p className="text-xs text-muted-foreground">
+                Select a pre-approved station to auto-fill details, or enter manually
+              </p>
+            </>
+          ) : (
+            <p className="text-xs text-muted-foreground">
+              No approved user stations available. Enter station details manually below.
+            </p>
+          )}
         </div>
       )}
       <div className="space-y-2">
