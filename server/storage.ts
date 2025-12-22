@@ -9,8 +9,9 @@ import {
   type AdminUser, type InsertAdminUser, type UpdateAdminUser,
   type MemberDial, type InsertMemberDial,
   type StationApprovalRequest, type InsertStationApprovalRequest,
+  type MemberUpgradeRequest, type InsertMemberUpgradeRequest,
   users, stations, userStations, stationTracks, adCampaigns, playbackHistory, members, adminUsers,
-  memberDial, stationApprovalRequests
+  memberDial, stationApprovalRequests, memberUpgradeRequests
 } from "@shared/schema";
 import { db } from "./db";
 import { eq, asc, desc, and, lte, gte, or, isNull } from "drizzle-orm";

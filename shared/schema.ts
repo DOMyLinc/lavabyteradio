@@ -245,6 +245,30 @@ export const insertStationApprovalRequestSchema = createInsertSchema(stationAppr
 export type InsertStationApprovalRequest = z.infer<typeof insertStationApprovalRequestSchema>;
 export type StationApprovalRequest = typeof stationApprovalRequests.$inferSelect;
 
+// Member upgrade requests (users requesting producer status)
+export const memberUpgradeRequests = pgTable("member_upgrade_requests", {
+  id: integer("id").primaryKey().generatedAlwaysAsIdentity(),
+  memberId: integer("member_id").notNull().references(() => members.id, { onDelete: "cascade" }),
+  justification: text("justification"), // Why they want to become a producer
+  status: text("status").notNull().default("pending"), // "pending", "approved", "rejected"
+  adminNotes: text("admin_notes"), // Admin feedback
+  reviewedBy: integer("reviewed_by"), // Admin who reviewed
+  requestedAt: timestamp("requested_at").defaultNow().notNull(),
+  reviewedAt: timestamp("reviewed_at"),
+});
+
+export const insertMemberUpgradeRequestSchema = createInsertSchema(memberUpgradeRequests).omit({
+  id: true,
+  status: true,
+  adminNotes: true,
+  reviewedBy: true,
+  requestedAt: true,
+  reviewedAt: true,
+});
+
+export type InsertMemberUpgradeRequest = z.infer<typeof insertMemberUpgradeRequestSchema>;
+export type MemberUpgradeRequest = typeof memberUpgradeRequests.$inferSelect;
+
 // Relations
 export const stationsRelations = relations(stations, ({}) => ({}));
 
