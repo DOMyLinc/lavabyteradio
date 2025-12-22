@@ -152,16 +152,16 @@ function StationsManager() {
       <div className="flex items-center justify-between gap-2">
         <h3 className="text-lg font-medium">External Stations ({stations.length})</h3>
         <Dialog open={isAddOpen} onOpenChange={setIsAddOpen}>
-          <DialogTrigger asChild>
-            <Tooltip>
-              <TooltipTrigger asChild>
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <DialogTrigger asChild>
                 <Button size="sm" data-testid="button-add-station">
                   <Plus className="h-4 w-4 mr-1" /> Add Station
                 </Button>
-              </TooltipTrigger>
-              <TooltipContent>Create a new radio station</TooltipContent>
-            </Tooltip>
-          </DialogTrigger>
+              </DialogTrigger>
+            </TooltipTrigger>
+            <TooltipContent>Create a new radio station</TooltipContent>
+          </Tooltip>
           <DialogContent>
             <DialogHeader>
               <DialogTitle>Add New Station</DialogTitle>
@@ -190,16 +190,16 @@ function StationsManager() {
                     {station.isActive ? "Active" : "Inactive"}
                   </Badge>
                   <Dialog>
-                    <DialogTrigger asChild>
-                      <Tooltip>
-                        <TooltipTrigger asChild>
+                    <Tooltip>
+                      <TooltipTrigger asChild>
+                        <DialogTrigger asChild>
                           <Button size="icon" variant="ghost" onClick={() => setEditingStation(station)} data-testid={`button-edit-station-${station.id}`}>
                             <Edit className="h-4 w-4" />
                           </Button>
-                        </TooltipTrigger>
-                        <TooltipContent>Edit station</TooltipContent>
-                      </Tooltip>
-                    </DialogTrigger>
+                        </DialogTrigger>
+                      </TooltipTrigger>
+                      <TooltipContent>Edit station</TooltipContent>
+                    </Tooltip>
                     <DialogContent>
                       <DialogHeader>
                         <DialogTitle>Edit Station</DialogTitle>
@@ -332,16 +332,16 @@ function UserStationsManager() {
       <div className="flex items-center justify-between gap-2">
         <h3 className="text-lg font-medium">User Stations ({stations.length})</h3>
         <Dialog open={isAddOpen} onOpenChange={setIsAddOpen}>
-          <DialogTrigger asChild>
-            <Tooltip>
-              <TooltipTrigger asChild>
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <DialogTrigger asChild>
                 <Button size="sm" data-testid="button-add-user-station">
                   <Plus className="h-4 w-4 mr-1" /> Add User Station
                 </Button>
-              </TooltipTrigger>
-              <TooltipContent>Create a new user station</TooltipContent>
-            </Tooltip>
-          </DialogTrigger>
+              </DialogTrigger>
+            </TooltipTrigger>
+            <TooltipContent>Create a new user station</TooltipContent>
+          </Tooltip>
           <DialogContent>
             <DialogHeader>
               <DialogTitle>Add New User Station</DialogTitle>
@@ -370,16 +370,16 @@ function UserStationsManager() {
                     {station.isActive ? "Active" : "Inactive"}
                   </Badge>
                   <Dialog>
-                    <DialogTrigger asChild>
-                      <Tooltip>
-                        <TooltipTrigger asChild>
+                    <Tooltip>
+                      <TooltipTrigger asChild>
+                        <DialogTrigger asChild>
                           <Button size="icon" variant="ghost" data-testid={`button-edit-user-station-${station.id}`}>
                             <Edit className="h-4 w-4" />
                           </Button>
-                        </TooltipTrigger>
-                        <TooltipContent>Edit user station</TooltipContent>
-                      </Tooltip>
-                    </DialogTrigger>
+                        </DialogTrigger>
+                      </TooltipTrigger>
+                      <TooltipContent>Edit user station</TooltipContent>
+                    </Tooltip>
                     <DialogContent>
                       <DialogHeader>
                         <DialogTitle>Edit User Station</DialogTitle>
