@@ -12,7 +12,7 @@ import { Switch } from "@/components/ui/switch";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { 
   LogOut, Radio, Music2, Megaphone, Users, Plus, Trash2, Edit, 
-  RefreshCw, Shield, Settings
+  RefreshCw, Shield, Settings, Disc
 } from "lucide-react";
 import type { Station, UserStation, StationTrack, AdCampaign } from "@shared/schema";
 
@@ -427,6 +427,219 @@ function UserStationForm({ station, onSave, isPending }: { station?: UserStation
   );
 }
 
+function TracksManager() {
+  const { toast } = useToast();
+  const [selectedStationId, setSelectedStationId] = useState<number | null>(null);
+  const [isAddOpen, setIsAddOpen] = useState(false);
+  const [editingTrack, setEditingTrack] = useState<StationTrack | null>(null);
+
+  const { data: stations = [], isLoading: stationsLoading } = useQuery<UserStation[]>({
+    queryKey: ["/api/user-stations"]
+  });
+
+  const { data: tracks = [], isLoading: tracksLoading } = useQuery<StationTrack[]>({
+    queryKey: ["/api/user-stations", selectedStationId, "tracks"],
+    queryFn: async () => {
+      if (!selectedStationId) return [];
+      const res = await fetch(`/api/user-stations/${selectedStationId}/tracks`);
+      if (!res.ok) throw new Error("Failed to fetch tracks");
+      return res.json();
+    },
+    enabled: !!selectedStationId
+  });
+
+  const deleteMutation = useMutation({
+    mutationFn: async (id: number) => {
+      await apiRequest("DELETE", `/api/tracks/${id}`);
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/user-stations", selectedStationId, "tracks"] });
+      toast({ title: "Track deleted" });
+    },
+    onError: (error: Error) => {
+      toast({ title: "Failed to delete", description: error.message, variant: "destructive" });
+    }
+  });
+
+  const saveMutation = useMutation({
+    mutationFn: async (data: { id?: number; track: Partial<StationTrack> }) => {
+      if (data.id) {
+        const res = await apiRequest("PATCH", `/api/tracks/${data.id}`, data.track);
+        return res.json();
+      } else {
+        const res = await apiRequest("POST", `/api/user-stations/${selectedStationId}/tracks`, data.track);
+        return res.json();
+      }
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/user-stations", selectedStationId, "tracks"] });
+      setIsAddOpen(false);
+      setEditingTrack(null);
+      toast({ title: "Track saved" });
+    },
+    onError: (error: Error) => {
+      toast({ title: "Failed to save", description: error.message, variant: "destructive" });
+    }
+  });
+
+  if (stationsLoading) return <div className="p-4">Loading stations...</div>;
+
+  return (
+    <div className="space-y-4">
+      <div className="flex items-center justify-between gap-2 flex-wrap">
+        <h3 className="text-lg font-medium">Station Tracks</h3>
+        <div className="flex items-center gap-2 flex-wrap">
+          <select
+            value={selectedStationId || ""}
+            onChange={(e) => setSelectedStationId(e.target.value ? Number(e.target.value) : null)}
+            className="h-9 rounded-md border border-slate-600 bg-slate-800 px-3 text-sm text-white"
+            data-testid="select-station-for-tracks"
+          >
+            <option value="">Select a station...</option>
+            {stations.map((station) => (
+              <option key={station.id} value={station.id}>{station.name}</option>
+            ))}
+          </select>
+          {selectedStationId && (
+            <Dialog open={isAddOpen} onOpenChange={setIsAddOpen}>
+              <DialogTrigger asChild>
+                <Button size="sm" data-testid="button-add-track">
+                  <Plus className="h-4 w-4 mr-1" /> Add Track
+                </Button>
+              </DialogTrigger>
+              <DialogContent>
+                <DialogHeader>
+                  <DialogTitle>Add New Track</DialogTitle>
+                </DialogHeader>
+                <TrackForm onSave={(track) => saveMutation.mutate({ track })} isPending={saveMutation.isPending} />
+              </DialogContent>
+            </Dialog>
+          )}
+        </div>
+      </div>
+
+      {!selectedStationId ? (
+        <div className="text-center py-8 text-muted-foreground">Select a station to manage its tracks</div>
+      ) : tracksLoading ? (
+        <div className="p-4">Loading tracks...</div>
+      ) : (
+        <div className="space-y-2">
+          {tracks.map((track) => (
+            <Card key={track.id}>
+              <CardContent className="p-4">
+                <div className="flex items-center justify-between gap-4 flex-wrap">
+                  <div className="min-w-0">
+                    <div className="font-medium truncate">{track.title}</div>
+                    <div className="text-sm text-muted-foreground truncate">
+                      {track.artist || "Unknown Artist"} - {track.mediaType}
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    {track.duration && (
+                      <Badge variant="outline">
+                        {Math.floor(track.duration / 60)}:{(track.duration % 60).toString().padStart(2, "0")}
+                      </Badge>
+                    )}
+                    <Dialog open={editingTrack?.id === track.id} onOpenChange={(open) => !open && setEditingTrack(null)}>
+                      <DialogTrigger asChild>
+                        <Button
+                          size="icon"
+                          variant="ghost"
+                          onClick={() => setEditingTrack(track)}
+                          data-testid={`button-edit-track-${track.id}`}
+                        >
+                          <Edit className="h-4 w-4" />
+                        </Button>
+                      </DialogTrigger>
+                      <DialogContent>
+                        <DialogHeader>
+                          <DialogTitle>Edit Track</DialogTitle>
+                        </DialogHeader>
+                        <TrackForm
+                          track={track}
+                          onSave={(updates) => saveMutation.mutate({ id: track.id, track: updates })}
+                          isPending={saveMutation.isPending}
+                        />
+                      </DialogContent>
+                    </Dialog>
+                    <Button
+                      size="icon"
+                      variant="ghost"
+                      onClick={() => deleteMutation.mutate(track.id)}
+                      disabled={deleteMutation.isPending}
+                      data-testid={`button-delete-track-${track.id}`}
+                    >
+                      <Trash2 className="h-4 w-4 text-destructive" />
+                    </Button>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+          ))}
+          {tracks.length === 0 && (
+            <div className="text-center py-8 text-muted-foreground">No tracks yet for this station</div>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function TrackForm({ track, onSave, isPending }: { track?: StationTrack; onSave: (data: Partial<StationTrack>) => void; isPending: boolean }) {
+  const [title, setTitle] = useState(track?.title || "");
+  const [artist, setArtist] = useState(track?.artist || "");
+  const [mediaUrl, setMediaUrl] = useState(track?.mediaUrl || "");
+  const [mediaType, setMediaType] = useState(track?.mediaType || "audio");
+  const [duration, setDuration] = useState(track?.duration?.toString() || "");
+
+  const handleSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    onSave({
+      title,
+      artist: artist || undefined,
+      mediaUrl,
+      mediaType,
+      duration: duration ? parseInt(duration) : undefined
+    });
+  };
+
+  return (
+    <form onSubmit={handleSubmit} className="space-y-4">
+      <div className="space-y-2">
+        <Label>Title</Label>
+        <Input value={title} onChange={(e) => setTitle(e.target.value)} required data-testid="input-track-title" />
+      </div>
+      <div className="space-y-2">
+        <Label>Artist</Label>
+        <Input value={artist} onChange={(e) => setArtist(e.target.value)} data-testid="input-track-artist" />
+      </div>
+      <div className="space-y-2">
+        <Label>Media URL</Label>
+        <Input value={mediaUrl} onChange={(e) => setMediaUrl(e.target.value)} required placeholder="https://... or object storage path" data-testid="input-track-media-url" />
+      </div>
+      <div className="space-y-2">
+        <Label>Media Type</Label>
+        <select
+          value={mediaType}
+          onChange={(e) => setMediaType(e.target.value)}
+          className="w-full h-9 rounded-md border border-input bg-background px-3 text-sm"
+          data-testid="select-track-media-type"
+        >
+          <option value="audio">Audio</option>
+          <option value="video">Video</option>
+        </select>
+      </div>
+      <div className="space-y-2">
+        <Label>Duration (seconds)</Label>
+        <Input type="number" value={duration} onChange={(e) => setDuration(e.target.value)} placeholder="e.g. 180" data-testid="input-track-duration" />
+      </div>
+      <Button type="submit" disabled={isPending} className="w-full" data-testid="button-save-track">
+        {isPending ? "Saving..." : "Save Track"}
+      </Button>
+    </form>
+  );
+}
+
 function AdCampaignsManager() {
   const { toast } = useToast();
   const [isAddOpen, setIsAddOpen] = useState(false);
@@ -807,7 +1020,7 @@ export default function AdminPanel() {
 
       <main className="container px-4 py-6">
         <Tabs defaultValue="stations" className="space-y-4">
-          <TabsList className="grid grid-cols-2 sm:grid-cols-4 lg:w-auto lg:inline-grid gap-1">
+          <TabsList className="grid grid-cols-2 sm:grid-cols-5 lg:w-auto lg:inline-grid gap-1">
             <TabsTrigger value="stations" className="flex items-center gap-1" data-testid="tab-stations">
               <Radio className="h-4 w-4" />
               <span className="hidden sm:inline">Stations</span>
@@ -815,6 +1028,10 @@ export default function AdminPanel() {
             <TabsTrigger value="user-stations" className="flex items-center gap-1" data-testid="tab-user-stations">
               <Music2 className="h-4 w-4" />
               <span className="hidden sm:inline">User Stations</span>
+            </TabsTrigger>
+            <TabsTrigger value="tracks" className="flex items-center gap-1" data-testid="tab-tracks">
+              <Disc className="h-4 w-4" />
+              <span className="hidden sm:inline">Tracks</span>
             </TabsTrigger>
             <TabsTrigger value="campaigns" className="flex items-center gap-1" data-testid="tab-campaigns">
               <Megaphone className="h-4 w-4" />
@@ -834,6 +1051,10 @@ export default function AdminPanel() {
 
           <TabsContent value="user-stations">
             <UserStationsManager />
+          </TabsContent>
+
+          <TabsContent value="tracks">
+            <TracksManager />
           </TabsContent>
 
           <TabsContent value="campaigns">
