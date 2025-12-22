@@ -27,6 +27,13 @@ function isAdminAuthenticated(req: Request, res: Response, next: NextFunction) {
   next();
 }
 
+function isMemberAuthenticated(req: Request, res: Response, next: NextFunction) {
+  if (!req.session?.memberId) {
+    return res.status(401).json({ error: "Member authentication required" });
+  }
+  next();
+}
+
 export async function registerRoutes(
   httpServer: Server,
   app: Express
@@ -549,6 +556,7 @@ export async function registerRoutes(
           id: member.id,
           email: member.email,
           displayName: member.displayName,
+          role: member.role,
           isPremium: member.isPremium,
           isVerified: member.isVerified
         }
@@ -576,6 +584,7 @@ export async function registerRoutes(
         id: member.id,
         email: member.email,
         displayName: member.displayName,
+        role: member.role,
         isPremium: member.isPremium,
         isVerified: member.isVerified
       });
@@ -821,6 +830,329 @@ export async function registerRoutes(
     } catch (error) {
       console.error("Failed to delete admin user:", error);
       res.status(500).json({ error: "Failed to delete admin user" });
+    }
+  });
+
+  // =====================
+  // MEMBER DIAL (saved stations)
+  // =====================
+
+  // Get member's dial
+  app.get("/api/members/dial", isMemberAuthenticated, async (req, res) => {
+    try {
+      const dial = await storage.getMemberDial(req.session.memberId!);
+      res.json(dial);
+    } catch (error) {
+      console.error("Failed to get dial:", error);
+      res.status(500).json({ error: "Failed to get dial" });
+    }
+  });
+
+  // Add station to dial
+  app.post("/api/members/dial", isMemberAuthenticated, async (req, res) => {
+    try {
+      const { stationId, userStationId, presetNumber } = req.body;
+      
+      if (!stationId && !userStationId) {
+        return res.status(400).json({ error: "Station ID required" });
+      }
+
+      const exists = await storage.isStationInDial(req.session.memberId!, stationId, userStationId);
+      if (exists) {
+        return res.status(400).json({ error: "Station already in dial" });
+      }
+
+      const entry = await storage.addToMemberDial({
+        memberId: req.session.memberId!,
+        stationId: stationId || null,
+        userStationId: userStationId || null,
+        presetNumber: presetNumber || null,
+        sortOrder: 0
+      });
+      res.status(201).json(entry);
+    } catch (error) {
+      console.error("Failed to add to dial:", error);
+      res.status(500).json({ error: "Failed to add to dial" });
+    }
+  });
+
+  // Remove station from dial
+  app.delete("/api/members/dial/:id", isMemberAuthenticated, async (req, res) => {
+    try {
+      const id = parseInt(req.params.id);
+      if (isNaN(id)) {
+        return res.status(400).json({ error: "Invalid ID" });
+      }
+
+      const deleted = await storage.removeFromMemberDial(req.session.memberId!, id);
+      if (!deleted) {
+        return res.status(404).json({ error: "Entry not found" });
+      }
+      res.status(204).send();
+    } catch (error) {
+      console.error("Failed to remove from dial:", error);
+      res.status(500).json({ error: "Failed to remove from dial" });
+    }
+  });
+
+  // =====================
+  // PRODUCER ROUTES
+  // =====================
+
+  // Get producer's stations
+  app.get("/api/producer/stations", isMemberAuthenticated, async (req, res) => {
+    try {
+      const member = await storage.getMember(req.session.memberId!);
+      if (!member || member.role !== "producer") {
+        return res.status(403).json({ error: "Producer access required" });
+      }
+
+      const stations = await storage.getProducerStations(member.id);
+      res.json(stations);
+    } catch (error) {
+      console.error("Failed to get producer stations:", error);
+      res.status(500).json({ error: "Failed to get stations" });
+    }
+  });
+
+  // Create producer station
+  app.post("/api/producer/stations", isMemberAuthenticated, async (req, res) => {
+    try {
+      const member = await storage.getMember(req.session.memberId!);
+      if (!member || member.role !== "producer") {
+        return res.status(403).json({ error: "Producer access required" });
+      }
+
+      const { name, description, logoUrl, genre } = req.body;
+      if (!name) {
+        return res.status(400).json({ error: "Station name required" });
+      }
+
+      const station = await storage.createUserStation({
+        producerId: member.id,
+        name,
+        description,
+        logoUrl,
+        genre,
+        isActive: true,
+        sortOrder: 0
+      });
+      res.status(201).json(station);
+    } catch (error) {
+      console.error("Failed to create station:", error);
+      res.status(500).json({ error: "Failed to create station" });
+    }
+  });
+
+  // Update producer station
+  app.patch("/api/producer/stations/:id", isMemberAuthenticated, async (req, res) => {
+    try {
+      const member = await storage.getMember(req.session.memberId!);
+      if (!member || member.role !== "producer") {
+        return res.status(403).json({ error: "Producer access required" });
+      }
+
+      const id = parseInt(req.params.id);
+      const station = await storage.getUserStation(id);
+      if (!station || station.producerId !== member.id) {
+        return res.status(404).json({ error: "Station not found" });
+      }
+
+      const updated = await storage.updateUserStation(id, req.body);
+      res.json(updated);
+    } catch (error) {
+      console.error("Failed to update station:", error);
+      res.status(500).json({ error: "Failed to update station" });
+    }
+  });
+
+  // Delete producer station
+  app.delete("/api/producer/stations/:id", isMemberAuthenticated, async (req, res) => {
+    try {
+      const member = await storage.getMember(req.session.memberId!);
+      if (!member || member.role !== "producer") {
+        return res.status(403).json({ error: "Producer access required" });
+      }
+
+      const id = parseInt(req.params.id);
+      const station = await storage.getUserStation(id);
+      if (!station || station.producerId !== member.id) {
+        return res.status(404).json({ error: "Station not found" });
+      }
+
+      await storage.deleteUserStation(id);
+      res.status(204).send();
+    } catch (error) {
+      console.error("Failed to delete station:", error);
+      res.status(500).json({ error: "Failed to delete station" });
+    }
+  });
+
+  // Get tracks for producer station
+  app.get("/api/producer/stations/:id/tracks", isMemberAuthenticated, async (req, res) => {
+    try {
+      const member = await storage.getMember(req.session.memberId!);
+      if (!member || member.role !== "producer") {
+        return res.status(403).json({ error: "Producer access required" });
+      }
+
+      const id = parseInt(req.params.id);
+      const station = await storage.getUserStation(id);
+      if (!station || station.producerId !== member.id) {
+        return res.status(404).json({ error: "Station not found" });
+      }
+
+      const tracks = await storage.getTracksByStation(id);
+      res.json(tracks);
+    } catch (error) {
+      console.error("Failed to get tracks:", error);
+      res.status(500).json({ error: "Failed to get tracks" });
+    }
+  });
+
+  // Add track to producer station
+  app.post("/api/producer/stations/:id/tracks", isMemberAuthenticated, async (req, res) => {
+    try {
+      const member = await storage.getMember(req.session.memberId!);
+      if (!member || member.role !== "producer") {
+        return res.status(403).json({ error: "Producer access required" });
+      }
+
+      const stationId = parseInt(req.params.id);
+      const station = await storage.getUserStation(stationId);
+      if (!station || station.producerId !== member.id) {
+        return res.status(404).json({ error: "Station not found" });
+      }
+
+      const { title, artist, mediaUrl, mediaType, duration } = req.body;
+      if (!title || !mediaUrl || !mediaType) {
+        return res.status(400).json({ error: "Title, media URL and type required" });
+      }
+
+      const track = await storage.createTrack({
+        stationId,
+        title,
+        artist,
+        mediaUrl,
+        mediaType,
+        duration,
+        sortOrder: 0
+      });
+      res.status(201).json(track);
+    } catch (error) {
+      console.error("Failed to add track:", error);
+      res.status(500).json({ error: "Failed to add track" });
+    }
+  });
+
+  // Submit station for approval
+  app.post("/api/producer/stations/:id/submit", isMemberAuthenticated, async (req, res) => {
+    try {
+      const member = await storage.getMember(req.session.memberId!);
+      if (!member || member.role !== "producer") {
+        return res.status(403).json({ error: "Producer access required" });
+      }
+
+      const stationId = parseInt(req.params.id);
+      const station = await storage.getUserStation(stationId);
+      if (!station || station.producerId !== member.id) {
+        return res.status(404).json({ error: "Station not found" });
+      }
+
+      const existing = await storage.getApprovalRequestByStation(stationId);
+      if (existing && existing.status === "pending") {
+        return res.status(400).json({ error: "Approval request already pending" });
+      }
+
+      const request = await storage.createApprovalRequest({
+        userStationId: stationId,
+        producerId: member.id
+      });
+      res.status(201).json(request);
+    } catch (error) {
+      console.error("Failed to submit for approval:", error);
+      res.status(500).json({ error: "Failed to submit" });
+    }
+  });
+
+  // =====================
+  // APPROVAL REQUESTS (Admin)
+  // =====================
+
+  // Get all approval requests
+  app.get("/api/admin/approvals", isAdminAuthenticated, async (req, res) => {
+    try {
+      const status = req.query.status as string | undefined;
+      const requests = await storage.getApprovalRequests(status);
+      res.json(requests);
+    } catch (error) {
+      console.error("Failed to get approval requests:", error);
+      res.status(500).json({ error: "Failed to get requests" });
+    }
+  });
+
+  // Review approval request
+  app.post("/api/admin/approvals/:id/review", isAdminAuthenticated, async (req, res) => {
+    try {
+      const currentAdmin = await storage.getAdminUser(req.session.adminId!);
+      if (!currentAdmin || currentAdmin.role !== "super_admin") {
+        return res.status(403).json({ error: "Super admin access required" });
+      }
+
+      const id = parseInt(req.params.id);
+      const { status, notes } = req.body;
+      
+      if (!status || !["approved", "rejected"].includes(status)) {
+        return res.status(400).json({ error: "Valid status required (approved/rejected)" });
+      }
+
+      const updated = await storage.reviewApprovalRequest(id, status, currentAdmin.id, notes);
+      if (!updated) {
+        return res.status(404).json({ error: "Request not found" });
+      }
+      res.json(updated);
+    } catch (error) {
+      console.error("Failed to review request:", error);
+      res.status(500).json({ error: "Failed to review" });
+    }
+  });
+
+  // =====================
+  // PUBLIC STATIONS (includes approved producer stations)
+  // =====================
+
+  // Get public user stations (approved by admin)
+  app.get("/api/public/user-stations", async (req, res) => {
+    try {
+      const stations = await storage.getPublicUserStations();
+      res.json(stations);
+    } catch (error) {
+      console.error("Failed to get public stations:", error);
+      res.status(500).json({ error: "Failed to get stations" });
+    }
+  });
+
+  // =====================
+  // MEMBER UPGRADE (Admin only)
+  // =====================
+
+  // Upgrade member to producer
+  app.post("/api/admin/members/:id/upgrade", isAdminAuthenticated, async (req, res) => {
+    try {
+      const currentAdmin = await storage.getAdminUser(req.session.adminId!);
+      if (!currentAdmin || currentAdmin.role !== "super_admin") {
+        return res.status(403).json({ error: "Super admin access required" });
+      }
+
+      const id = parseInt(req.params.id);
+      const member = await storage.upgradeToProducer(id);
+      if (!member) {
+        return res.status(404).json({ error: "Member not found" });
+      }
+      res.json({ message: "Member upgraded to producer", member });
+    } catch (error) {
+      console.error("Failed to upgrade member:", error);
+      res.status(500).json({ error: "Failed to upgrade" });
     }
   });
 

@@ -5,9 +5,12 @@ import {
   type StationTrack, type InsertStationTrack, type UpdateStationTrack,
   type AdCampaign, type InsertAdCampaign, type UpdateAdCampaign,
   type PlaybackHistory, type InsertPlaybackHistory,
-  type Member,
+  type Member, type UpdateMember,
   type AdminUser, type InsertAdminUser, type UpdateAdminUser,
-  users, stations, userStations, stationTracks, adCampaigns, playbackHistory, members, adminUsers
+  type MemberDial, type InsertMemberDial,
+  type StationApprovalRequest, type InsertStationApprovalRequest,
+  users, stations, userStations, stationTracks, adCampaigns, playbackHistory, members, adminUsers,
+  memberDial, stationApprovalRequests
 } from "@shared/schema";
 import { db } from "./db";
 import { eq, asc, desc, and, lte, gte, or, isNull } from "drizzle-orm";
@@ -65,6 +68,27 @@ export interface IStorage {
   updateAdminUser(id: number, data: UpdateAdminUser): Promise<AdminUser | undefined>;
   deleteAdminUser(id: number): Promise<boolean>;
   updateAdminLastLogin(id: number): Promise<void>;
+
+  // Member management (role updates, producer upgrade)
+  updateMember(id: number, data: UpdateMember): Promise<Member | undefined>;
+  upgradeToProducer(id: number): Promise<Member | undefined>;
+
+  // Member dial (saved stations)
+  getMemberDial(memberId: number): Promise<MemberDial[]>;
+  addToMemberDial(data: InsertMemberDial): Promise<MemberDial>;
+  removeFromMemberDial(memberId: number, id: number): Promise<boolean>;
+  isStationInDial(memberId: number, stationId?: number, userStationId?: number): Promise<boolean>;
+
+  // Producer stations
+  getProducerStations(producerId: number): Promise<UserStation[]>;
+  getPublicUserStations(): Promise<UserStation[]>;
+
+  // Station approval requests
+  getApprovalRequests(status?: string): Promise<StationApprovalRequest[]>;
+  getApprovalRequest(id: number): Promise<StationApprovalRequest | undefined>;
+  getApprovalRequestByStation(stationId: number): Promise<StationApprovalRequest | undefined>;
+  createApprovalRequest(data: InsertStationApprovalRequest): Promise<StationApprovalRequest>;
+  reviewApprovalRequest(id: number, status: string, adminId: number, notes?: string): Promise<StationApprovalRequest | undefined>;
 }
 
 export class DatabaseStorage implements IStorage {
@@ -298,6 +322,123 @@ export class DatabaseStorage implements IStorage {
     await db.update(adminUsers)
       .set({ lastLoginAt: new Date() })
       .where(eq(adminUsers.id, id));
+  }
+
+  // Member management
+  async updateMember(id: number, data: UpdateMember): Promise<Member | undefined> {
+    const [updated] = await db
+      .update(members)
+      .set(data)
+      .where(eq(members.id, id))
+      .returning();
+    return updated || undefined;
+  }
+
+  async upgradeToProducer(id: number): Promise<Member | undefined> {
+    const [updated] = await db
+      .update(members)
+      .set({ role: "producer", isPremium: true })
+      .where(eq(members.id, id))
+      .returning();
+    return updated || undefined;
+  }
+
+  // Member dial (saved stations)
+  async getMemberDial(memberId: number): Promise<MemberDial[]> {
+    return db.select().from(memberDial)
+      .where(eq(memberDial.memberId, memberId))
+      .orderBy(asc(memberDial.sortOrder));
+  }
+
+  async addToMemberDial(data: InsertMemberDial): Promise<MemberDial> {
+    const [created] = await db.insert(memberDial).values(data).returning();
+    return created;
+  }
+
+  async removeFromMemberDial(memberId: number, id: number): Promise<boolean> {
+    const result = await db.delete(memberDial)
+      .where(and(eq(memberDial.memberId, memberId), eq(memberDial.id, id)))
+      .returning();
+    return result.length > 0;
+  }
+
+  async isStationInDial(memberId: number, stationId?: number, userStationId?: number): Promise<boolean> {
+    let condition;
+    if (stationId) {
+      condition = and(eq(memberDial.memberId, memberId), eq(memberDial.stationId, stationId));
+    } else if (userStationId) {
+      condition = and(eq(memberDial.memberId, memberId), eq(memberDial.userStationId, userStationId));
+    } else {
+      return false;
+    }
+    const [existing] = await db.select().from(memberDial).where(condition);
+    return !!existing;
+  }
+
+  // Producer stations
+  async getProducerStations(producerId: number): Promise<UserStation[]> {
+    return db.select().from(userStations)
+      .where(eq(userStations.producerId, producerId))
+      .orderBy(asc(userStations.sortOrder));
+  }
+
+  async getPublicUserStations(): Promise<UserStation[]> {
+    return db.select().from(userStations)
+      .where(and(eq(userStations.isPublic, true), eq(userStations.isActive, true)))
+      .orderBy(asc(userStations.sortOrder));
+  }
+
+  // Station approval requests
+  async getApprovalRequests(status?: string): Promise<StationApprovalRequest[]> {
+    if (status) {
+      return db.select().from(stationApprovalRequests)
+        .where(eq(stationApprovalRequests.status, status))
+        .orderBy(desc(stationApprovalRequests.requestedAt));
+    }
+    return db.select().from(stationApprovalRequests)
+      .orderBy(desc(stationApprovalRequests.requestedAt));
+  }
+
+  async getApprovalRequest(id: number): Promise<StationApprovalRequest | undefined> {
+    const [request] = await db.select().from(stationApprovalRequests)
+      .where(eq(stationApprovalRequests.id, id));
+    return request || undefined;
+  }
+
+  async getApprovalRequestByStation(stationId: number): Promise<StationApprovalRequest | undefined> {
+    const [request] = await db.select().from(stationApprovalRequests)
+      .where(eq(stationApprovalRequests.userStationId, stationId));
+    return request || undefined;
+  }
+
+  async createApprovalRequest(data: InsertStationApprovalRequest): Promise<StationApprovalRequest> {
+    const [created] = await db.insert(stationApprovalRequests).values(data).returning();
+    return created;
+  }
+
+  async reviewApprovalRequest(id: number, status: string, adminId: number, notes?: string): Promise<StationApprovalRequest | undefined> {
+    const [updated] = await db
+      .update(stationApprovalRequests)
+      .set({ 
+        status, 
+        reviewedBy: adminId, 
+        adminNotes: notes,
+        reviewedAt: new Date() 
+      })
+      .where(eq(stationApprovalRequests.id, id))
+      .returning();
+    
+    if (updated && status === "approved") {
+      await db.update(userStations)
+        .set({ isPublic: true, approvalStatus: "approved" })
+        .where(eq(userStations.id, updated.userStationId));
+    } else if (updated && status === "rejected") {
+      await db.update(userStations)
+        .set({ approvalStatus: "rejected" })
+        .where(eq(userStations.id, updated.userStationId));
+    }
+    
+    return updated || undefined;
   }
 }
 

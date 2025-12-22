@@ -32,15 +32,18 @@ export type InsertStation = z.infer<typeof insertStationSchema>;
 export type UpdateStation = z.infer<typeof updateStationSchema>;
 export type Station = typeof stations.$inferSelect;
 
-// User-created radio stations (playlist-based)
+// User-created radio stations (playlist-based) - can be created by admin or producers
 export const userStations = pgTable("user_stations", {
   id: integer("id").primaryKey().generatedAlwaysAsIdentity(),
-  ownerId: text("owner_id"), // For future user ownership - nullable for now
+  ownerId: text("owner_id"), // For admin-created stations (null) or future use
+  producerId: integer("producer_id"), // For producer-created stations (references members.id)
   name: text("name").notNull(),
   description: text("description"),
   logoUrl: text("logo_url"),
   genre: text("genre"),
   isActive: boolean("is_active").default(true).notNull(),
+  isPublic: boolean("is_public").default(false).notNull(), // If true, visible to all users on main player
+  approvalStatus: text("approval_status").default("pending"), // "pending", "approved", "rejected"
   sortOrder: integer("sort_order").default(0).notNull(),
   createdAt: timestamp("created_at").defaultNow().notNull(),
 });
@@ -48,6 +51,8 @@ export const userStations = pgTable("user_stations", {
 export const insertUserStationSchema = createInsertSchema(userStations).omit({
   id: true,
   createdAt: true,
+  approvalStatus: true,
+  isPublic: true,
 });
 
 export const updateUserStationSchema = createInsertSchema(userStations).omit({
@@ -142,6 +147,7 @@ export const members = pgTable("members", {
   passwordHash: text("password_hash").notNull(),
   displayName: text("display_name"),
   avatarUrl: text("avatar_url"),
+  role: text("role").notNull().default("user"), // "user" or "producer"
   isPremium: boolean("is_premium").default(false).notNull(),
   isVerified: boolean("is_verified").default(false).notNull(),
   verificationToken: text("verification_token"),
@@ -154,9 +160,17 @@ export const insertMemberSchema = createInsertSchema(members).omit({
   createdAt: true,
   isPremium: true,
   isVerified: true,
+  role: true,
 });
 
+export const updateMemberSchema = createInsertSchema(members).omit({
+  id: true,
+  createdAt: true,
+  passwordHash: true,
+}).partial();
+
 export type InsertMember = z.infer<typeof insertMemberSchema>;
+export type UpdateMember = z.infer<typeof updateMemberSchema>;
 export type Member = typeof members.$inferSelect;
 
 // Admin users for panel access
@@ -188,16 +202,75 @@ export type InsertAdminUser = z.infer<typeof insertAdminUserSchema>;
 export type UpdateAdminUser = z.infer<typeof updateAdminUserSchema>;
 export type AdminUser = typeof adminUsers.$inferSelect;
 
+// Member's saved station dial (favorites)
+export const memberDial = pgTable("member_dial", {
+  id: integer("id").primaryKey().generatedAlwaysAsIdentity(),
+  memberId: integer("member_id").notNull().references(() => members.id, { onDelete: "cascade" }),
+  stationId: integer("station_id"), // External station (null if user station)
+  userStationId: integer("user_station_id"), // User station (null if external)
+  presetNumber: integer("preset_number"), // Optional preset slot (1-5)
+  sortOrder: integer("sort_order").default(0).notNull(),
+  addedAt: timestamp("added_at").defaultNow().notNull(),
+});
+
+export const insertMemberDialSchema = createInsertSchema(memberDial).omit({
+  id: true,
+  addedAt: true,
+});
+
+export type InsertMemberDial = z.infer<typeof insertMemberDialSchema>;
+export type MemberDial = typeof memberDial.$inferSelect;
+
+// Station approval requests (producers submitting stations for public visibility)
+export const stationApprovalRequests = pgTable("station_approval_requests", {
+  id: integer("id").primaryKey().generatedAlwaysAsIdentity(),
+  userStationId: integer("user_station_id").notNull().references(() => userStations.id, { onDelete: "cascade" }),
+  producerId: integer("producer_id").notNull().references(() => members.id, { onDelete: "cascade" }),
+  status: text("status").notNull().default("pending"), // "pending", "approved", "rejected"
+  adminNotes: text("admin_notes"), // Reason for approval/rejection
+  reviewedBy: integer("reviewed_by"), // Admin who reviewed
+  requestedAt: timestamp("requested_at").defaultNow().notNull(),
+  reviewedAt: timestamp("reviewed_at"),
+});
+
+export const insertStationApprovalRequestSchema = createInsertSchema(stationApprovalRequests).omit({
+  id: true,
+  status: true,
+  adminNotes: true,
+  reviewedBy: true,
+  requestedAt: true,
+  reviewedAt: true,
+});
+
+export type InsertStationApprovalRequest = z.infer<typeof insertStationApprovalRequestSchema>;
+export type StationApprovalRequest = typeof stationApprovalRequests.$inferSelect;
+
 // Relations
 export const stationsRelations = relations(stations, ({}) => ({}));
 
-export const userStationsRelations = relations(userStations, ({ many }) => ({
+export const userStationsRelations = relations(userStations, ({ many, one }) => ({
   tracks: many(stationTracks),
+  producer: one(members, {
+    fields: [userStations.producerId],
+    references: [members.id],
+  }),
 }));
 
 export const stationTracksRelations = relations(stationTracks, ({ one }) => ({
   station: one(userStations, {
     fields: [stationTracks.stationId],
     references: [userStations.id],
+  }),
+}));
+
+export const membersRelations = relations(members, ({ many }) => ({
+  dial: many(memberDial),
+  producerStations: many(userStations),
+}));
+
+export const memberDialRelations = relations(memberDial, ({ one }) => ({
+  member: one(members, {
+    fields: [memberDial.memberId],
+    references: [members.id],
   }),
 }));
