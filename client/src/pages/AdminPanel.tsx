@@ -16,6 +16,7 @@ import {
 } from "lucide-react";
 import { Textarea } from "@/components/ui/textarea";
 import type { Station, UserStation, StationTrack, AdCampaign, MemberUpgradeRequest, Member } from "@shared/schema";
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 
 type AdminSession = {
   id: number;
@@ -152,9 +153,14 @@ function StationsManager() {
         <h3 className="text-lg font-medium">External Stations ({stations.length})</h3>
         <Dialog open={isAddOpen} onOpenChange={setIsAddOpen}>
           <DialogTrigger asChild>
-            <Button size="sm" data-testid="button-add-station">
-              <Plus className="h-4 w-4 mr-1" /> Add Station
-            </Button>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Button size="sm" data-testid="button-add-station">
+                  <Plus className="h-4 w-4 mr-1" /> Add Station
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent>Create a new radio station</TooltipContent>
+            </Tooltip>
           </DialogTrigger>
           <DialogContent>
             <DialogHeader>
@@ -185,9 +191,14 @@ function StationsManager() {
                   </Badge>
                   <Dialog>
                     <DialogTrigger asChild>
-                      <Button size="icon" variant="ghost" onClick={() => setEditingStation(station)} data-testid={`button-edit-station-${station.id}`}>
-                        <Edit className="h-4 w-4" />
-                      </Button>
+                      <Tooltip>
+                        <TooltipTrigger asChild>
+                          <Button size="icon" variant="ghost" onClick={() => setEditingStation(station)} data-testid={`button-edit-station-${station.id}`}>
+                            <Edit className="h-4 w-4" />
+                          </Button>
+                        </TooltipTrigger>
+                        <TooltipContent>Edit station</TooltipContent>
+                      </Tooltip>
                     </DialogTrigger>
                     <DialogContent>
                       <DialogHeader>
@@ -200,15 +211,20 @@ function StationsManager() {
                       />
                     </DialogContent>
                   </Dialog>
-                  <Button
-                    size="icon"
-                    variant="ghost"
-                    onClick={() => deleteMutation.mutate(station.id)}
-                    disabled={deleteMutation.isPending}
-                    data-testid={`button-delete-station-${station.id}`}
-                  >
-                    <Trash2 className="h-4 w-4 text-destructive" />
-                  </Button>
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <Button
+                        size="icon"
+                        variant="ghost"
+                        onClick={() => deleteMutation.mutate(station.id)}
+                        disabled={deleteMutation.isPending}
+                        data-testid={`button-delete-station-${station.id}`}
+                      >
+                        <Trash2 className="h-4 w-4 text-destructive" />
+                      </Button>
+                    </TooltipTrigger>
+                    <TooltipContent>Delete station</TooltipContent>
+                  </Tooltip>
                 </div>
               </div>
             </CardContent>
@@ -317,9 +333,14 @@ function UserStationsManager() {
         <h3 className="text-lg font-medium">User Stations ({stations.length})</h3>
         <Dialog open={isAddOpen} onOpenChange={setIsAddOpen}>
           <DialogTrigger asChild>
-            <Button size="sm" data-testid="button-add-user-station">
-              <Plus className="h-4 w-4 mr-1" /> Add User Station
-            </Button>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Button size="sm" data-testid="button-add-user-station">
+                  <Plus className="h-4 w-4 mr-1" /> Add User Station
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent>Create a new user station</TooltipContent>
+            </Tooltip>
           </DialogTrigger>
           <DialogContent>
             <DialogHeader>
@@ -350,9 +371,14 @@ function UserStationsManager() {
                   </Badge>
                   <Dialog>
                     <DialogTrigger asChild>
-                      <Button size="icon" variant="ghost" data-testid={`button-edit-user-station-${station.id}`}>
-                        <Edit className="h-4 w-4" />
-                      </Button>
+                      <Tooltip>
+                        <TooltipTrigger asChild>
+                          <Button size="icon" variant="ghost" data-testid={`button-edit-user-station-${station.id}`}>
+                            <Edit className="h-4 w-4" />
+                          </Button>
+                        </TooltipTrigger>
+                        <TooltipContent>Edit user station</TooltipContent>
+                      </Tooltip>
                     </DialogTrigger>
                     <DialogContent>
                       <DialogHeader>
@@ -365,15 +391,20 @@ function UserStationsManager() {
                       />
                     </DialogContent>
                   </Dialog>
-                  <Button
-                    size="icon"
-                    variant="ghost"
-                    onClick={() => deleteMutation.mutate(station.id)}
-                    disabled={deleteMutation.isPending}
-                    data-testid={`button-delete-user-station-${station.id}`}
-                  >
-                    <Trash2 className="h-4 w-4 text-destructive" />
-                  </Button>
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <Button
+                        size="icon"
+                        variant="ghost"
+                        onClick={() => deleteMutation.mutate(station.id)}
+                        disabled={deleteMutation.isPending}
+                        data-testid={`button-delete-user-station-${station.id}`}
+                      >
+                        <Trash2 className="h-4 w-4 text-destructive" />
+                      </Button>
+                    </TooltipTrigger>
+                    <TooltipContent>Delete user station</TooltipContent>
+                  </Tooltip>
                 </div>
               </div>
             </CardContent>
@@ -1147,10 +1178,15 @@ export default function AdminPanel() {
                 <Badge className="ml-2 bg-orange-500 text-white">Super Admin</Badge>
               )}
             </span>
-            <Button variant="ghost" size="sm" onClick={() => logoutMutation.mutate()} className="text-slate-200 hover:text-white hover:bg-slate-700" data-testid="button-admin-logout">
-              <LogOut className="h-4 w-4 mr-1" />
-              Logout
-            </Button>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Button variant="ghost" size="sm" onClick={() => logoutMutation.mutate()} className="text-slate-200 hover:text-white hover:bg-slate-700" data-testid="button-admin-logout">
+                  <LogOut className="h-4 w-4 mr-1" />
+                  Logout
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent>Sign out of admin panel</TooltipContent>
+            </Tooltip>
           </div>
         </div>
       </header>

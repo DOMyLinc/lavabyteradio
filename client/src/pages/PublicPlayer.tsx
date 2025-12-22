@@ -18,6 +18,7 @@ import {
 } from "@/components/ui/dialog";
 import { Textarea } from "@/components/ui/textarea";
 import { Loader2, LogOut, Sparkles, Clock, CheckCircle, XCircle } from "lucide-react";
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import type { Station, UserStation, MemberDial, MemberUpgradeRequest } from "@shared/schema";
 import mascotImage from "@assets/588496392_1194040775959608_6497226853787014568_n_1766347733869.jpg";
 
@@ -319,15 +320,20 @@ export default function PublicPlayer() {
                   )}
                 </>
               )}
-              <Button
-                variant="ghost"
-                size="icon"
-                onClick={() => logoutMutation.mutate()}
-                disabled={logoutMutation.isPending}
-                data-testid="button-logout"
-              >
-                <LogOut className="h-4 w-4 text-muted-foreground" />
-              </Button>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    onClick={() => logoutMutation.mutate()}
+                    disabled={logoutMutation.isPending}
+                    data-testid="button-logout"
+                  >
+                    <LogOut className="h-4 w-4 text-muted-foreground" />
+                  </Button>
+                </TooltipTrigger>
+                <TooltipContent>Sign out</TooltipContent>
+              </Tooltip>
             </div>
           ) : (
             <a

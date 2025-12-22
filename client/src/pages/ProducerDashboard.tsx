@@ -12,9 +12,11 @@ import { Switch } from "@/components/ui/switch";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { 
   LogOut, Radio, Music2, Plus, Trash2, Edit, Send, 
-  Check, X, Clock, ArrowLeft
+  Check, X, Clock, ArrowLeft, Upload, Link as LinkIcon
 } from "lucide-react";
 import { Link } from "wouter";
+import { ObjectUploader } from "@/components/ObjectUploader";
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import type { UserStation, StationTrack } from "@shared/schema";
 
 type MemberSession = {
@@ -130,9 +132,14 @@ function StationForm({ station, onSave, isPending }: { station?: UserStation; on
         <Switch checked={isActive} onCheckedChange={setIsActive} data-testid="switch-producer-station-active" />
         <Label>Active</Label>
       </div>
-      <Button type="submit" disabled={isPending} className="w-full" data-testid="button-save-producer-station">
-        {isPending ? "Saving..." : "Save Station"}
-      </Button>
+      <Tooltip>
+        <TooltipTrigger asChild>
+          <Button type="submit" disabled={isPending} className="w-full" data-testid="button-save-producer-station">
+            {isPending ? "Saving..." : "Save Station"}
+          </Button>
+        </TooltipTrigger>
+        <TooltipContent>Save your station details</TooltipContent>
+      </Tooltip>
     </form>
   );
 }
@@ -143,9 +150,27 @@ function TrackForm({ track, onSave, isPending }: { track?: StationTrack; onSave:
   const [mediaUrl, setMediaUrl] = useState(track?.mediaUrl || "");
   const [mediaType, setMediaType] = useState<string>(track?.mediaType || "audio");
   const [duration, setDuration] = useState(track?.duration?.toString() || "");
+  const [uploadMode, setUploadMode] = useState<"upload" | "url">("upload");
+  const [isUploading, setIsUploading] = useState(false);
+  const [uploadedFileName, setUploadedFileName] = useState("");
+  const [pendingObjectPath, setPendingObjectPath] = useState<string | null>(null);
+  const [validationError, setValidationError] = useState("");
+
+  const handleModeSwitch = (mode: "upload" | "url") => {
+    setUploadMode(mode);
+    setMediaUrl("");
+    setUploadedFileName("");
+    setPendingObjectPath(null);
+    setValidationError("");
+  };
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
+    if (!mediaUrl.trim()) {
+      setValidationError(uploadMode === "upload" ? "Please upload an audio file first" : "Please enter a valid URL");
+      return;
+    }
+    setValidationError("");
     onSave({
       title,
       artist: artist || undefined,
@@ -153,6 +178,45 @@ function TrackForm({ track, onSave, isPending }: { track?: StationTrack; onSave:
       mediaType,
       duration: duration ? parseInt(duration) : undefined
     });
+  };
+
+  const allowedMimeTypes = ["audio/mpeg", "audio/mp3", "audio/wav", "audio/x-wav", "audio/flac", "audio/ogg", "audio/x-flac"];
+  
+  const handleGetUploadParameters = async (file: { name: string; size: number | null; type?: string }) => {
+    const mimeType = file.type || "";
+    if (!allowedMimeTypes.includes(mimeType)) {
+      setValidationError("Unsupported file format. Please use MP3, WAV, FLAC, or OGG files.");
+      setIsUploading(false);
+      throw new Error("Unsupported file format");
+    }
+    setValidationError("");
+    setIsUploading(true);
+    const res = await fetch("/api/uploads/request-url", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        name: file.name,
+        size: file.size || 0,
+        contentType: mimeType
+      })
+    });
+    const data = await res.json();
+    setPendingObjectPath(data.objectPath);
+    return {
+      method: "PUT" as const,
+      url: data.uploadURL as string,
+      headers: { "Content-Type": mimeType }
+    };
+  };
+
+  const handleUploadComplete = (result: { successful?: Array<unknown> }) => {
+    setIsUploading(false);
+    if (result.successful && result.successful.length > 0 && pendingObjectPath) {
+      const uploadedFile = result.successful[0] as { name?: string };
+      setUploadedFileName(uploadedFile.name || "audio file");
+      setMediaUrl(pendingObjectPath);
+      setPendingObjectPath(null);
+    }
   };
 
   return (
@@ -165,10 +229,84 @@ function TrackForm({ track, onSave, isPending }: { track?: StationTrack; onSave:
         <Label>Artist</Label>
         <Input value={artist} onChange={(e) => setArtist(e.target.value)} data-testid="input-producer-track-artist" />
       </div>
+      
       <div className="space-y-2">
-        <Label>Media URL</Label>
-        <Input value={mediaUrl} onChange={(e) => setMediaUrl(e.target.value)} required placeholder="https://..." data-testid="input-producer-track-url" />
+        <Label>Audio Source</Label>
+        <div className="flex gap-2 mb-2">
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <Button 
+                type="button" 
+                variant={uploadMode === "upload" ? "default" : "outline"} 
+                size="sm"
+                onClick={() => handleModeSwitch("upload")}
+                disabled={isUploading}
+                data-testid="button-upload-mode"
+              >
+                <Upload className="h-4 w-4 mr-1" />
+                Upload File
+              </Button>
+            </TooltipTrigger>
+            <TooltipContent>Select an audio file from your device</TooltipContent>
+          </Tooltip>
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <Button 
+                type="button" 
+                variant={uploadMode === "url" ? "default" : "outline"} 
+                size="sm"
+                onClick={() => handleModeSwitch("url")}
+                disabled={isUploading}
+                data-testid="button-url-mode"
+              >
+                <LinkIcon className="h-4 w-4 mr-1" />
+                Enter URL
+              </Button>
+            </TooltipTrigger>
+            <TooltipContent>Use a URL link to an audio file</TooltipContent>
+          </Tooltip>
+        </div>
+        {validationError && (
+          <p className="text-sm text-red-400">{validationError}</p>
+        )}
+        
+        {uploadMode === "upload" ? (
+          <div className="space-y-2">
+            <ObjectUploader
+              maxNumberOfFiles={1}
+              maxFileSize={104857600}
+              onGetUploadParameters={handleGetUploadParameters}
+              onComplete={handleUploadComplete}
+              buttonClassName="w-full bg-slate-700 hover:bg-slate-600"
+            >
+              <Upload className="h-4 w-4 mr-2" />
+              {isUploading ? "Uploading..." : "Select Audio File"}
+            </ObjectUploader>
+            {uploadedFileName && (
+              <p className="text-sm text-green-400 flex items-center gap-1">
+                <Check className="h-3 w-3" />
+                Uploaded: {uploadedFileName}
+              </p>
+            )}
+            {mediaUrl && uploadMode === "upload" && (
+              <p className="text-xs text-muted-foreground truncate">
+                Path: {mediaUrl}
+              </p>
+            )}
+            <p className="text-xs text-muted-foreground">
+              Supported formats: MP3, WAV, FLAC, OGG (max 100MB)
+            </p>
+          </div>
+        ) : (
+          <Input 
+            value={mediaUrl} 
+            onChange={(e) => setMediaUrl(e.target.value)} 
+            placeholder="https://example.com/audio.mp3" 
+            data-testid="input-producer-track-url" 
+          />
+        )}
       </div>
+      
       <div className="space-y-2">
         <Label>Media Type</Label>
         <select
@@ -185,9 +323,14 @@ function TrackForm({ track, onSave, isPending }: { track?: StationTrack; onSave:
         <Label>Duration (seconds)</Label>
         <Input type="number" value={duration} onChange={(e) => setDuration(e.target.value)} placeholder="180" data-testid="input-producer-track-duration" />
       </div>
-      <Button type="submit" disabled={isPending} className="w-full" data-testid="button-save-producer-track">
-        {isPending ? "Saving..." : "Save Track"}
-      </Button>
+      <Tooltip>
+        <TooltipTrigger asChild>
+          <Button type="submit" disabled={isPending} className="w-full" data-testid="button-save-producer-track">
+            {isPending ? "Saving..." : "Save Track"}
+          </Button>
+        </TooltipTrigger>
+        <TooltipContent>Save this track to your station playlist</TooltipContent>
+      </Tooltip>
     </form>
   );
 }
