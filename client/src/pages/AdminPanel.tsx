@@ -12,9 +12,10 @@ import { Switch } from "@/components/ui/switch";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { 
   LogOut, Radio, Music2, Megaphone, Users, Plus, Trash2, Edit, 
-  RefreshCw, Shield, Settings, Disc
+  RefreshCw, Shield, Settings, Disc, Sparkles, Check, X
 } from "lucide-react";
-import type { Station, UserStation, StationTrack, AdCampaign } from "@shared/schema";
+import { Textarea } from "@/components/ui/textarea";
+import type { Station, UserStation, StationTrack, AdCampaign, MemberUpgradeRequest, Member } from "@shared/schema";
 
 type AdminSession = {
   id: number;
@@ -790,6 +791,142 @@ function CampaignForm({ campaign, onSave, isPending }: { campaign?: AdCampaign; 
   );
 }
 
+function UpgradeRequestsManager() {
+  const { toast } = useToast();
+  const [reviewNotes, setReviewNotes] = useState<Record<number, string>>({});
+
+  const { data: requests = [], isLoading, error } = useQuery<MemberUpgradeRequest[]>({
+    queryKey: ["/api/admin/upgrade-requests"]
+  });
+
+  const reviewMutation = useMutation({
+    mutationFn: async ({ id, status, notes }: { id: number; status: string; notes?: string }) => {
+      const res = await apiRequest("POST", `/api/admin/upgrade-requests/${id}/review`, { status, notes });
+      return res.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/admin/upgrade-requests"] });
+      toast({ title: "Request reviewed successfully" });
+    },
+    onError: (error: Error) => {
+      toast({ title: "Failed to review", description: error.message, variant: "destructive" });
+    }
+  });
+
+  if (isLoading) return <div className="text-center py-8">Loading...</div>;
+  if (error) return <div className="text-center py-8 text-red-400">Failed to load requests</div>;
+
+  const pendingRequests = requests.filter(r => r.status === "pending");
+  const reviewedRequests = requests.filter(r => r.status !== "pending");
+
+  return (
+    <Card className="bg-slate-800 border-slate-700">
+      <CardHeader>
+        <CardTitle className="flex items-center gap-2">
+          <Sparkles className="h-5 w-5 text-orange-400" />
+          Upgrade Requests
+        </CardTitle>
+        <CardDescription>Review member requests to become producers</CardDescription>
+      </CardHeader>
+      <CardContent>
+        {pendingRequests.length === 0 && reviewedRequests.length === 0 ? (
+          <p className="text-slate-400 text-center py-4">No upgrade requests</p>
+        ) : (
+          <div className="space-y-6">
+            {pendingRequests.length > 0 && (
+              <div>
+                <h3 className="text-sm font-medium text-orange-400 mb-3">Pending Requests ({pendingRequests.length})</h3>
+                <div className="space-y-3">
+                  {pendingRequests.map((request) => (
+                    <div key={request.id} className="p-4 bg-slate-700/50 rounded-lg space-y-3">
+                      <div className="flex items-start justify-between gap-4">
+                        <div>
+                          <p className="font-medium">Member ID: {request.memberId}</p>
+                          <p className="text-xs text-slate-400">
+                            Requested: {new Date(request.requestedAt).toLocaleDateString()}
+                          </p>
+                        </div>
+                        <Badge variant="outline" className="text-yellow-400 border-yellow-400">Pending</Badge>
+                      </div>
+                      {request.justification && (
+                        <p className="text-sm text-slate-300 bg-slate-800 p-2 rounded">
+                          "{request.justification}"
+                        </p>
+                      )}
+                      <div className="space-y-2">
+                        <Textarea
+                          placeholder="Optional notes for the member..."
+                          value={reviewNotes[request.id] || ""}
+                          onChange={(e) => setReviewNotes(prev => ({ ...prev, [request.id]: e.target.value }))}
+                          className="bg-slate-800 border-slate-600 text-sm"
+                          data-testid={`textarea-review-notes-${request.id}`}
+                        />
+                        <div className="flex gap-2">
+                          <Button
+                            size="sm"
+                            onClick={() => reviewMutation.mutate({ 
+                              id: request.id, 
+                              status: "approved", 
+                              notes: reviewNotes[request.id] 
+                            })}
+                            disabled={reviewMutation.isPending}
+                            className="bg-green-600 hover:bg-green-700"
+                            data-testid={`button-approve-${request.id}`}
+                          >
+                            <Check className="h-4 w-4 mr-1" />
+                            Approve
+                          </Button>
+                          <Button
+                            size="sm"
+                            variant="destructive"
+                            onClick={() => reviewMutation.mutate({ 
+                              id: request.id, 
+                              status: "rejected", 
+                              notes: reviewNotes[request.id] 
+                            })}
+                            disabled={reviewMutation.isPending}
+                            data-testid={`button-reject-${request.id}`}
+                          >
+                            <X className="h-4 w-4 mr-1" />
+                            Reject
+                          </Button>
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+            {reviewedRequests.length > 0 && (
+              <div>
+                <h3 className="text-sm font-medium text-slate-400 mb-3">Reviewed ({reviewedRequests.length})</h3>
+                <div className="space-y-2">
+                  {reviewedRequests.slice(0, 10).map((request) => (
+                    <div key={request.id} className="p-3 bg-slate-700/30 rounded-lg flex items-center justify-between gap-4">
+                      <div>
+                        <p className="text-sm">Member ID: {request.memberId}</p>
+                        <p className="text-xs text-slate-500">
+                          {request.reviewedAt && new Date(request.reviewedAt).toLocaleDateString()}
+                        </p>
+                      </div>
+                      <Badge 
+                        variant="outline" 
+                        className={request.status === "approved" ? "text-green-400 border-green-400" : "text-red-400 border-red-400"}
+                      >
+                        {request.status}
+                      </Badge>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+          </div>
+        )}
+      </CardContent>
+    </Card>
+  );
+}
+
 function AdminUsersManager() {
   const { toast } = useToast();
   const [isAddOpen, setIsAddOpen] = useState(false);
@@ -1038,6 +1175,12 @@ export default function AdminPanel() {
               <span className="hidden sm:inline">Ads</span>
             </TabsTrigger>
             {session.role === "super_admin" && (
+              <TabsTrigger value="upgrades" className="flex items-center gap-1" data-testid="tab-upgrades">
+                <Sparkles className="h-4 w-4" />
+                <span className="hidden sm:inline">Upgrades</span>
+              </TabsTrigger>
+            )}
+            {session.role === "super_admin" && (
               <TabsTrigger value="admins" className="flex items-center gap-1" data-testid="tab-admins">
                 <Users className="h-4 w-4" />
                 <span className="hidden sm:inline">Admins</span>
@@ -1060,6 +1203,12 @@ export default function AdminPanel() {
           <TabsContent value="campaigns">
             <AdCampaignsManager />
           </TabsContent>
+
+          {session.role === "super_admin" && (
+            <TabsContent value="upgrades">
+              <UpgradeRequestsManager />
+            </TabsContent>
+          )}
 
           {session.role === "super_admin" && (
             <TabsContent value="admins">

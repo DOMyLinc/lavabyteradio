@@ -90,6 +90,13 @@ export interface IStorage {
   getApprovalRequestByStation(stationId: number): Promise<StationApprovalRequest | undefined>;
   createApprovalRequest(data: InsertStationApprovalRequest): Promise<StationApprovalRequest>;
   reviewApprovalRequest(id: number, status: string, adminId: number, notes?: string): Promise<StationApprovalRequest | undefined>;
+
+  // Member upgrade requests
+  getMemberUpgradeRequests(status?: string): Promise<MemberUpgradeRequest[]>;
+  getMemberUpgradeRequest(id: number): Promise<MemberUpgradeRequest | undefined>;
+  getMemberUpgradeRequestByMember(memberId: number): Promise<MemberUpgradeRequest | undefined>;
+  createMemberUpgradeRequest(data: InsertMemberUpgradeRequest): Promise<MemberUpgradeRequest>;
+  reviewMemberUpgradeRequest(id: number, status: string, adminId: number, notes?: string): Promise<MemberUpgradeRequest | undefined>;
 }
 
 export class DatabaseStorage implements IStorage {
@@ -437,6 +444,57 @@ export class DatabaseStorage implements IStorage {
       await db.update(userStations)
         .set({ approvalStatus: "rejected" })
         .where(eq(userStations.id, updated.userStationId));
+    }
+    
+    return updated || undefined;
+  }
+
+  // Member upgrade requests
+  async getMemberUpgradeRequests(status?: string): Promise<MemberUpgradeRequest[]> {
+    if (status) {
+      return db.select().from(memberUpgradeRequests)
+        .where(eq(memberUpgradeRequests.status, status))
+        .orderBy(desc(memberUpgradeRequests.requestedAt));
+    }
+    return db.select().from(memberUpgradeRequests)
+      .orderBy(desc(memberUpgradeRequests.requestedAt));
+  }
+
+  async getMemberUpgradeRequest(id: number): Promise<MemberUpgradeRequest | undefined> {
+    const [request] = await db.select().from(memberUpgradeRequests)
+      .where(eq(memberUpgradeRequests.id, id));
+    return request || undefined;
+  }
+
+  async getMemberUpgradeRequestByMember(memberId: number): Promise<MemberUpgradeRequest | undefined> {
+    const [request] = await db.select().from(memberUpgradeRequests)
+      .where(eq(memberUpgradeRequests.memberId, memberId))
+      .orderBy(desc(memberUpgradeRequests.requestedAt))
+      .limit(1);
+    return request || undefined;
+  }
+
+  async createMemberUpgradeRequest(data: InsertMemberUpgradeRequest): Promise<MemberUpgradeRequest> {
+    const [created] = await db.insert(memberUpgradeRequests).values(data).returning();
+    return created;
+  }
+
+  async reviewMemberUpgradeRequest(id: number, status: string, adminId: number, notes?: string): Promise<MemberUpgradeRequest | undefined> {
+    const [updated] = await db
+      .update(memberUpgradeRequests)
+      .set({ 
+        status, 
+        reviewedBy: adminId, 
+        adminNotes: notes,
+        reviewedAt: new Date() 
+      })
+      .where(eq(memberUpgradeRequests.id, id))
+      .returning();
+    
+    if (updated && status === "approved") {
+      await db.update(members)
+        .set({ role: "producer", isPremium: true })
+        .where(eq(members.id, updated.memberId));
     }
     
     return updated || undefined;

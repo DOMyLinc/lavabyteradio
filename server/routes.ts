@@ -1156,5 +1156,101 @@ export async function registerRoutes(
     }
   });
 
+  // =====================
+  // MEMBER UPGRADE REQUESTS
+  // =====================
+
+  // Member: Create upgrade request
+  app.post("/api/members/upgrade-request", isMemberAuthenticated, async (req, res) => {
+    try {
+      const memberId = req.session.memberId!;
+      const member = await storage.getMember(memberId);
+      
+      if (!member) {
+        return res.status(404).json({ error: "Member not found" });
+      }
+
+      if (member.role === "producer") {
+        return res.status(400).json({ error: "You are already a producer" });
+      }
+
+      // Check if there's already a pending or approved request
+      const existing = await storage.getMemberUpgradeRequestByMember(memberId);
+      if (existing && existing.status === "pending") {
+        return res.status(400).json({ error: "You already have a pending upgrade request" });
+      }
+      if (existing && existing.status === "approved") {
+        return res.status(400).json({ error: "Your upgrade request was already approved" });
+      }
+
+      const { justification } = req.body;
+      const request = await storage.createMemberUpgradeRequest({
+        memberId,
+        justification: justification || null
+      });
+
+      res.status(201).json(request);
+    } catch (error) {
+      console.error("Failed to create upgrade request:", error);
+      res.status(500).json({ error: "Failed to submit request" });
+    }
+  });
+
+  // Member: Get own upgrade request status
+  app.get("/api/members/upgrade-request", isMemberAuthenticated, async (req, res) => {
+    try {
+      const memberId = req.session.memberId!;
+      const request = await storage.getMemberUpgradeRequestByMember(memberId);
+      res.json(request || null);
+    } catch (error) {
+      console.error("Failed to get upgrade request:", error);
+      res.status(500).json({ error: "Failed to get request status" });
+    }
+  });
+
+  // Admin: Get all upgrade requests
+  app.get("/api/admin/upgrade-requests", isAdminAuthenticated, async (req, res) => {
+    try {
+      const status = req.query.status as string | undefined;
+      const requests = await storage.getMemberUpgradeRequests(status);
+      res.json(requests);
+    } catch (error) {
+      console.error("Failed to get upgrade requests:", error);
+      res.status(500).json({ error: "Failed to get requests" });
+    }
+  });
+
+  // Admin: Review upgrade request
+  app.post("/api/admin/upgrade-requests/:id/review", isAdminAuthenticated, async (req, res) => {
+    try {
+      const currentAdmin = await storage.getAdminUser(req.session.adminId!);
+      if (!currentAdmin || currentAdmin.role !== "super_admin") {
+        return res.status(403).json({ error: "Super admin access required" });
+      }
+
+      const id = parseInt(req.params.id);
+      const { status, notes } = req.body;
+      
+      if (!status || !["approved", "rejected"].includes(status)) {
+        return res.status(400).json({ error: "Valid status required (approved/rejected)" });
+      }
+
+      // Check if request exists and is still pending
+      const existingRequest = await storage.getMemberUpgradeRequest(id);
+      if (!existingRequest) {
+        return res.status(404).json({ error: "Request not found" });
+      }
+      if (existingRequest.status !== "pending") {
+        return res.status(400).json({ error: "This request has already been reviewed" });
+      }
+
+      const updated = await storage.reviewMemberUpgradeRequest(id, status, currentAdmin.id, notes);
+      res.json(updated);
+    } catch (error) {
+      console.error("Failed to review upgrade request:", error);
+      res.status(500).json({ error: "Failed to review" });
+    }
+  });
+
   return httpServer;
 }

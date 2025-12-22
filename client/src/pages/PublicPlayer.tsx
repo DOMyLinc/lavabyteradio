@@ -1,4 +1,5 @@
 import { useQuery, useMutation } from "@tanstack/react-query";
+import { useState, useEffect } from "react";
 import { LavaBackground } from "@/components/LavaBackground";
 import { StereoUnit } from "@/components/StereoUnit";
 import { AdBanner } from "@/components/AdBanner";
@@ -6,8 +7,18 @@ import { queryClient, apiRequest } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Loader2, LogOut } from "lucide-react";
-import type { Station, UserStation, MemberDial } from "@shared/schema";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+} from "@/components/ui/dialog";
+import { Textarea } from "@/components/ui/textarea";
+import { Loader2, LogOut, Sparkles, Clock, CheckCircle, XCircle } from "lucide-react";
+import type { Station, UserStation, MemberDial, MemberUpgradeRequest } from "@shared/schema";
 import mascotImage from "@assets/588496392_1194040775959608_6497226853787014568_n_1766347733869.jpg";
 
 type MemberSession = {
@@ -25,10 +36,46 @@ export type UnifiedStation =
 
 export default function PublicPlayer() {
   const { toast } = useToast();
+  const [upgradeDialogOpen, setUpgradeDialogOpen] = useState(false);
+  const [justification, setJustification] = useState("");
 
   const { data: member } = useQuery<MemberSession>({
     queryKey: ["/api/members/me"],
     retry: false
+  });
+
+  const { data: upgradeRequest } = useQuery<MemberUpgradeRequest | null>({
+    queryKey: ["/api/members/upgrade-request"],
+    enabled: !!member && member.role !== "producer",
+    refetchInterval: (query) => {
+      // Poll every 10 seconds while there's a pending request
+      if (query.state.data?.status === "pending") {
+        return 10000;
+      }
+      return false;
+    },
+  });
+
+  useEffect(() => {
+    if (upgradeRequest?.status === "approved") {
+      queryClient.invalidateQueries({ queryKey: ["/api/members/me"] });
+    }
+  }, [upgradeRequest?.status]);
+
+  const submitUpgradeRequest = useMutation({
+    mutationFn: async (data: { justification: string }) => {
+      const res = await apiRequest("POST", "/api/members/upgrade-request", data);
+      return res.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/members/upgrade-request"] });
+      setUpgradeDialogOpen(false);
+      setJustification("");
+      toast({ title: "Upgrade request submitted!", description: "An admin will review your request." });
+    },
+    onError: (error: Error) => {
+      toast({ title: "Failed to submit request", description: error.message, variant: "destructive" });
+    }
   });
 
   const { data: externalStations = [], isLoading: loadingExternal, error: errorExternal } = useQuery<Station[]>({
@@ -165,7 +212,7 @@ export default function PublicPlayer() {
                   <Badge variant="outline" className="text-orange-400 border-orange-400 text-xs">Producer</Badge>
                 )}
               </div>
-              {member.role === "producer" && (
+              {member.role === "producer" ? (
                 <a
                   href="/producer"
                   className="text-xs text-orange-400 hover:text-orange-300 transition-colors"
@@ -173,6 +220,104 @@ export default function PublicPlayer() {
                 >
                   Dashboard
                 </a>
+              ) : (
+                <>
+                  {upgradeRequest?.status === "pending" ? (
+                    <Badge variant="outline" className="text-yellow-400 border-yellow-400 text-xs gap-1">
+                      <Clock className="h-3 w-3" />
+                      <span className="hidden sm:inline">Upgrade Pending</span>
+                    </Badge>
+                  ) : upgradeRequest?.status === "approved" ? (
+                    <Badge variant="outline" className="text-green-400 border-green-400 text-xs gap-1">
+                      <CheckCircle className="h-3 w-3" />
+                      <span className="hidden sm:inline">Approved</span>
+                    </Badge>
+                  ) : upgradeRequest?.status === "rejected" ? (
+                    <Dialog open={upgradeDialogOpen} onOpenChange={setUpgradeDialogOpen}>
+                      <DialogTrigger asChild>
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          className="text-xs text-muted-foreground"
+                          data-testid="button-request-upgrade-retry"
+                        >
+                          <XCircle className="h-3 w-3 mr-1 text-red-400" />
+                          Rejected - Try Again
+                        </Button>
+                      </DialogTrigger>
+                      <DialogContent>
+                        <DialogHeader>
+                          <DialogTitle>Request Producer Upgrade</DialogTitle>
+                          <DialogDescription>
+                            Your previous request was rejected. You can submit a new request with additional details.
+                            {upgradeRequest.adminNotes && (
+                              <span className="block mt-2 text-yellow-400">
+                                Previous feedback: {upgradeRequest.adminNotes}
+                              </span>
+                            )}
+                          </DialogDescription>
+                        </DialogHeader>
+                        <Textarea
+                          placeholder="Tell us why you'd like to become a producer..."
+                          value={justification}
+                          onChange={(e) => setJustification(e.target.value)}
+                          className="min-h-[100px]"
+                          data-testid="textarea-upgrade-justification"
+                        />
+                        <DialogFooter>
+                          <Button
+                            onClick={() => submitUpgradeRequest.mutate({ justification })}
+                            disabled={submitUpgradeRequest.isPending}
+                            data-testid="button-submit-upgrade"
+                          >
+                            {submitUpgradeRequest.isPending && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
+                            Submit Request
+                          </Button>
+                        </DialogFooter>
+                      </DialogContent>
+                    </Dialog>
+                  ) : (
+                    <Dialog open={upgradeDialogOpen} onOpenChange={setUpgradeDialogOpen}>
+                      <DialogTrigger asChild>
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          className="text-xs text-orange-400"
+                          data-testid="button-request-upgrade"
+                        >
+                          <Sparkles className="h-3 w-3 mr-1" />
+                          <span className="hidden sm:inline">Become a Producer</span>
+                        </Button>
+                      </DialogTrigger>
+                      <DialogContent>
+                        <DialogHeader>
+                          <DialogTitle>Become a Producer</DialogTitle>
+                          <DialogDescription>
+                            As a producer, you can create your own radio stations with custom playlists. 
+                            Tell us why you'd like to become a producer.
+                          </DialogDescription>
+                        </DialogHeader>
+                        <Textarea
+                          placeholder="I want to share my music taste with the world..."
+                          value={justification}
+                          onChange={(e) => setJustification(e.target.value)}
+                          className="min-h-[100px]"
+                          data-testid="textarea-upgrade-justification"
+                        />
+                        <DialogFooter>
+                          <Button
+                            onClick={() => submitUpgradeRequest.mutate({ justification })}
+                            disabled={submitUpgradeRequest.isPending}
+                            data-testid="button-submit-upgrade"
+                          >
+                            {submitUpgradeRequest.isPending && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
+                            Submit Request
+                          </Button>
+                        </DialogFooter>
+                      </DialogContent>
+                    </Dialog>
+                  )}
+                </>
               )}
               <Button
                 variant="ghost"
