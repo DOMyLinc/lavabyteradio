@@ -51,9 +51,11 @@ export interface IStorage {
   clearHistory(): Promise<void>;
 
   // Members
+  getMember(id: number): Promise<Member | undefined>;
   getMemberByEmail(email: string): Promise<Member | undefined>;
   createMember(data: { email: string; passwordHash: string; displayName?: string; verificationToken?: string; verificationExpires?: Date }): Promise<Member>;
   verifyMember(token: string): Promise<Member | undefined>;
+  autoVerifyMember(id: number): Promise<void>;
 
   // Admin users
   getAdminUserByEmail(email: string): Promise<AdminUser | undefined>;
@@ -225,6 +227,11 @@ export class DatabaseStorage implements IStorage {
   }
 
   // Members
+  async getMember(id: number): Promise<Member | undefined> {
+    const [member] = await db.select().from(members).where(eq(members.id, id));
+    return member || undefined;
+  }
+
   async getMemberByEmail(email: string): Promise<Member | undefined> {
     const [member] = await db.select().from(members).where(eq(members.email, email));
     return member || undefined;
@@ -245,6 +252,12 @@ export class DatabaseStorage implements IStorage {
       .where(eq(members.id, member.id))
       .returning();
     return updated;
+  }
+
+  async autoVerifyMember(id: number): Promise<void> {
+    await db.update(members)
+      .set({ isVerified: true })
+      .where(eq(members.id, id));
   }
 
   // Admin users

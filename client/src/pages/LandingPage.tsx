@@ -30,12 +30,13 @@ export default function LandingPage() {
     onSuccess: () => {
       toast({
         title: "Welcome to Lava Bytes!",
-        description: "Check your email to verify your account.",
+        description: "Your account is ready. Taking you to the player...",
       });
       setIsLoginOpen(false);
       setEmail("");
       setPassword("");
       setDisplayName("");
+      window.location.href = "/player";
     },
     onError: (error: Error) => {
       toast({
@@ -53,9 +54,10 @@ export default function LandingPage() {
     onSuccess: () => {
       toast({
         title: "Welcome back!",
-        description: "You're now logged in.",
+        description: "Taking you to the player...",
       });
       setIsLoginOpen(false);
+      window.location.href = "/player";
     },
     onError: (error: Error) => {
       toast({

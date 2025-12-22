@@ -16,6 +16,7 @@ import { z } from "zod";
 declare module "express-session" {
   interface SessionData {
     adminId?: number;
+    memberId?: number;
   }
 }
 
@@ -473,7 +474,7 @@ export async function registerRoutes(
   // MEMBER AUTH ROUTES
   // =====================
 
-  // Register new member
+  // Register new member (auto-verified for now)
   app.post("/api/members/register", async (req, res) => {
     try {
       const { email, password, displayName } = req.body;
@@ -490,24 +491,28 @@ export async function registerRoutes(
 
       // Simple password hash (for testing - use bcrypt in production)
       const passwordHash = Buffer.from(password).toString("base64");
-      const verificationToken = Math.random().toString(36).substring(2, 15);
-      const verificationExpires = new Date(Date.now() + 24 * 60 * 60 * 1000);
 
       const member = await storage.createMember({
         email,
         passwordHash,
         displayName: displayName || email.split("@")[0],
-        verificationToken,
-        verificationExpires,
       });
+      
+      // Auto-verify the member immediately
+      await storage.autoVerifyMember(member.id);
 
-      // In a real app, send verification email here
-      console.log(`Verification link: /api/members/verify?token=${verificationToken}`);
+      // Create session immediately after registration
+      req.session.memberId = member.id;
 
       res.status(201).json({ 
-        message: "Account created. Check your email for verification.",
-        id: member.id,
-        email: member.email 
+        message: "Account created successfully!",
+        member: {
+          id: member.id,
+          email: member.email,
+          displayName: member.displayName,
+          isPremium: member.isPremium,
+          isVerified: true
+        }
       });
     } catch (error) {
       console.error("Failed to register member:", error);
@@ -535,6 +540,9 @@ export async function registerRoutes(
         return res.status(401).json({ error: "Invalid email or password" });
       }
 
+      // Create session
+      req.session.memberId = member.id;
+
       res.json({ 
         message: "Login successful",
         member: {
@@ -549,6 +557,38 @@ export async function registerRoutes(
       console.error("Failed to login:", error);
       res.status(500).json({ error: "Login failed" });
     }
+  });
+
+  // Get current member session
+  app.get("/api/members/me", async (req, res) => {
+    try {
+      if (!req.session?.memberId) {
+        return res.status(401).json({ error: "Not authenticated" });
+      }
+
+      const member = await storage.getMember(req.session.memberId);
+      if (!member) {
+        req.session.destroy(() => {});
+        return res.status(401).json({ error: "Session invalid" });
+      }
+
+      res.json({
+        id: member.id,
+        email: member.email,
+        displayName: member.displayName,
+        isPremium: member.isPremium,
+        isVerified: member.isVerified
+      });
+    } catch (error) {
+      console.error("Failed to get member session:", error);
+      res.status(500).json({ error: "Failed to get session" });
+    }
+  });
+
+  // Logout member
+  app.post("/api/members/logout", (req, res) => {
+    req.session.destroy(() => {});
+    res.json({ message: "Logged out successfully" });
   });
 
   // Verify email
