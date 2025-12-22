@@ -73,6 +73,8 @@ export const stationTracks = pgTable("station_tracks", {
   genre: text("genre"), // Track genre
   mediaUrl: text("media_url").notNull(), // Object storage path
   mediaType: text("media_type").notNull(), // "audio" or "video"
+  coverArtUrl: text("cover_art_url"), // Optional cover art image URL
+  duration: integer("duration"), // Duration in seconds
   sortOrder: integer("sort_order").default(0).notNull(),
   createdAt: timestamp("created_at").defaultNow().notNull(),
 });

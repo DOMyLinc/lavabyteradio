@@ -13,10 +13,10 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from 
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { 
   LogOut, Radio, Music2, Megaphone, Users, Plus, Trash2, Edit, 
-  RefreshCw, Shield, Settings, Disc, Sparkles, Check, X
+  RefreshCw, Shield, Settings, Disc, Sparkles, Check, X, ClipboardList
 } from "lucide-react";
 import { Textarea } from "@/components/ui/textarea";
-import type { Station, UserStation, StationTrack, AdCampaign, MemberUpgradeRequest, Member } from "@shared/schema";
+import type { Station, UserStation, StationTrack, AdCampaign, MemberUpgradeRequest, Member, StationApprovalRequest } from "@shared/schema";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 
 type AdminSession = {
@@ -679,6 +679,50 @@ function TrackForm({ track, onSave, isPending }: { track?: StationTrack; onSave:
   const [mediaUrl, setMediaUrl] = useState(track?.mediaUrl || "");
   const [mediaType, setMediaType] = useState(track?.mediaType || "audio");
   const [duration, setDuration] = useState(track?.duration?.toString() || "");
+  const [coverArtUrl, setCoverArtUrl] = useState(track?.coverArtUrl || "");
+  const [isUploadingCover, setIsUploadingCover] = useState(false);
+  const { toast } = useToast();
+
+  const handleCoverUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    if (!file.type.startsWith("image/")) {
+      toast({ title: "Invalid file type", description: "Please select an image file", variant: "destructive" });
+      return;
+    }
+
+    setIsUploadingCover(true);
+    try {
+      const response = await fetch("/api/uploads/request-url", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          name: file.name,
+          size: file.size,
+          contentType: file.type,
+        }),
+      });
+
+      if (!response.ok) throw new Error("Failed to get upload URL");
+      const { uploadURL, objectPath } = await response.json();
+
+      const uploadRes = await fetch(uploadURL, {
+        method: "PUT",
+        body: file,
+        headers: { "Content-Type": file.type },
+      });
+
+      if (!uploadRes.ok) throw new Error("Failed to upload file");
+
+      setCoverArtUrl(objectPath);
+      toast({ title: "Cover art uploaded successfully" });
+    } catch (error) {
+      toast({ title: "Upload failed", description: error instanceof Error ? error.message : "Unknown error", variant: "destructive" });
+    } finally {
+      setIsUploadingCover(false);
+    }
+  };
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -687,7 +731,8 @@ function TrackForm({ track, onSave, isPending }: { track?: StationTrack; onSave:
       artist: artist || undefined,
       mediaUrl,
       mediaType,
-      duration: duration ? parseInt(duration) : undefined
+      duration: duration ? parseInt(duration) : undefined,
+      coverArtUrl: coverArtUrl || undefined
     });
   };
 
@@ -721,7 +766,30 @@ function TrackForm({ track, onSave, isPending }: { track?: StationTrack; onSave:
         <Label>Duration (seconds)</Label>
         <Input type="number" value={duration} onChange={(e) => setDuration(e.target.value)} placeholder="e.g. 180" data-testid="input-track-duration" />
       </div>
-      <Button type="submit" disabled={isPending} className="w-full" data-testid="button-save-track">
+      <div className="space-y-2">
+        <Label>Cover Art</Label>
+        <div className="flex items-center gap-2">
+          <Input
+            type="file"
+            accept="image/*"
+            onChange={handleCoverUpload}
+            disabled={isUploadingCover}
+            className="flex-1"
+            data-testid="input-track-cover-art"
+          />
+          {isUploadingCover && <span className="text-sm text-muted-foreground">Uploading...</span>}
+        </div>
+        {coverArtUrl && (
+          <div className="flex items-center gap-2 mt-2">
+            <img src={coverArtUrl} alt="Cover art preview" className="w-16 h-16 object-cover rounded" />
+            <span className="text-xs text-muted-foreground truncate flex-1">{coverArtUrl}</span>
+            <Button type="button" size="sm" variant="ghost" onClick={() => setCoverArtUrl("")} data-testid="button-remove-cover-art">
+              <X className="h-4 w-4" />
+            </Button>
+          </div>
+        )}
+      </div>
+      <Button type="submit" disabled={isPending || isUploadingCover} className="w-full" data-testid="button-save-track">
         {isPending ? "Saving..." : "Save Track"}
       </Button>
     </form>
@@ -1014,6 +1082,162 @@ function UpgradeRequestsManager() {
   );
 }
 
+type ApprovalRequestWithStation = StationApprovalRequest & {
+  stationName?: string;
+  producerName?: string;
+};
+
+function StationApprovalRequestsManager() {
+  const { toast } = useToast();
+  const [reviewNotes, setReviewNotes] = useState<Record<number, string>>({});
+
+  const { data: requests = [], isLoading, error } = useQuery<ApprovalRequestWithStation[]>({
+    queryKey: ["/api/admin/approvals"]
+  });
+
+  const { data: userStations = [] } = useQuery<UserStation[]>({
+    queryKey: ["/api/user-stations"]
+  });
+
+  const { data: members = [] } = useQuery<Member[]>({
+    queryKey: ["/api/members"]
+  });
+
+  const reviewMutation = useMutation({
+    mutationFn: async ({ id, status, notes }: { id: number; status: string; notes?: string }) => {
+      const res = await apiRequest("POST", `/api/admin/approvals/${id}/review`, { status, notes });
+      return res.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/admin/approvals"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/user-stations"] });
+      toast({ title: "Station review submitted successfully" });
+    },
+    onError: (error: Error) => {
+      toast({ title: "Failed to review", description: error.message, variant: "destructive" });
+    }
+  });
+
+  if (isLoading) return <div className="text-center py-8">Loading...</div>;
+  if (error) return <div className="text-center py-8 text-red-400">Failed to load approval requests</div>;
+
+  const getStationName = (stationId: number) => {
+    const station = userStations.find(s => s.id === stationId);
+    return station?.name || `Station #${stationId}`;
+  };
+
+  const getProducerName = (producerId: number) => {
+    const member = members.find(m => m.id === producerId);
+    return member?.displayName || member?.email || `Producer #${producerId}`;
+  };
+
+  const pendingRequests = requests.filter(r => r.status === "pending");
+  const reviewedRequests = requests.filter(r => r.status !== "pending");
+
+  return (
+    <Card className="bg-slate-800 border-slate-700">
+      <CardHeader>
+        <CardTitle className="flex items-center gap-2">
+          <ClipboardList className="h-5 w-5 text-orange-400" />
+          Station Approval Requests
+        </CardTitle>
+        <CardDescription>Review producer station submissions for public listing</CardDescription>
+      </CardHeader>
+      <CardContent>
+        {pendingRequests.length === 0 && reviewedRequests.length === 0 ? (
+          <p className="text-slate-400 text-center py-4">No station approval requests</p>
+        ) : (
+          <div className="space-y-6">
+            {pendingRequests.length > 0 && (
+              <div>
+                <h3 className="text-sm font-medium text-orange-400 mb-3">Pending Requests ({pendingRequests.length})</h3>
+                <div className="space-y-3">
+                  {pendingRequests.map((request) => (
+                    <div key={request.id} className="p-4 bg-slate-700/50 rounded-lg space-y-3">
+                      <div className="flex items-start justify-between gap-4">
+                        <div>
+                          <p className="font-medium">{getStationName(request.userStationId)}</p>
+                          <p className="text-sm text-slate-300">By: {getProducerName(request.producerId)}</p>
+                          <p className="text-xs text-slate-400">
+                            Submitted: {new Date(request.requestedAt).toLocaleDateString()}
+                          </p>
+                        </div>
+                        <Badge variant="outline" className="text-yellow-400 border-yellow-400">Pending</Badge>
+                      </div>
+                      <div className="space-y-2">
+                        <Textarea
+                          placeholder="Optional notes for the producer..."
+                          value={reviewNotes[request.id] || ""}
+                          onChange={(e) => setReviewNotes(prev => ({ ...prev, [request.id]: e.target.value }))}
+                          className="bg-slate-800 border-slate-600 text-sm"
+                          data-testid={`textarea-approval-notes-${request.id}`}
+                        />
+                        <div className="flex gap-2">
+                          <Button
+                            size="sm"
+                            onClick={() => reviewMutation.mutate({ 
+                              id: request.id, 
+                              status: "approved", 
+                              notes: reviewNotes[request.id] 
+                            })}
+                            disabled={reviewMutation.isPending}
+                            className="bg-green-600 hover:bg-green-700"
+                            data-testid={`button-approve-station-${request.id}`}
+                          >
+                            <Check className="h-4 w-4 mr-1" />
+                            Approve
+                          </Button>
+                          <Button
+                            size="sm"
+                            variant="destructive"
+                            onClick={() => reviewMutation.mutate({ 
+                              id: request.id, 
+                              status: "rejected", 
+                              notes: reviewNotes[request.id] 
+                            })}
+                            disabled={reviewMutation.isPending}
+                            data-testid={`button-reject-station-${request.id}`}
+                          >
+                            <X className="h-4 w-4 mr-1" />
+                            Reject
+                          </Button>
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+            {reviewedRequests.length > 0 && (
+              <div>
+                <h3 className="text-sm font-medium text-slate-400 mb-3">Reviewed ({reviewedRequests.length})</h3>
+                <div className="space-y-2">
+                  {reviewedRequests.slice(0, 10).map((request) => (
+                    <div key={request.id} className="p-3 bg-slate-700/30 rounded-lg flex items-center justify-between gap-4">
+                      <div>
+                        <p className="text-sm">{getStationName(request.userStationId)}</p>
+                        <p className="text-xs text-slate-500">
+                          {request.reviewedAt && new Date(request.reviewedAt).toLocaleDateString()}
+                        </p>
+                      </div>
+                      <Badge 
+                        variant="outline" 
+                        className={request.status === "approved" ? "text-green-400 border-green-400" : "text-red-400 border-red-400"}
+                      >
+                        {request.status}
+                      </Badge>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+          </div>
+        )}
+      </CardContent>
+    </Card>
+  );
+}
+
 function AdminUsersManager() {
   const { toast } = useToast();
   const [isAddOpen, setIsAddOpen] = useState(false);
@@ -1267,6 +1491,12 @@ export default function AdminPanel() {
               <span className="hidden sm:inline">Ads</span>
             </TabsTrigger>
             {session.role === "super_admin" && (
+              <TabsTrigger value="approvals" className="flex items-center gap-1" data-testid="tab-approvals">
+                <ClipboardList className="h-4 w-4" />
+                <span className="hidden sm:inline">Approvals</span>
+              </TabsTrigger>
+            )}
+            {session.role === "super_admin" && (
               <TabsTrigger value="upgrades" className="flex items-center gap-1" data-testid="tab-upgrades">
                 <Sparkles className="h-4 w-4" />
                 <span className="hidden sm:inline">Upgrades</span>
@@ -1295,6 +1525,12 @@ export default function AdminPanel() {
           <TabsContent value="campaigns">
             <AdCampaignsManager />
           </TabsContent>
+
+          {session.role === "super_admin" && (
+            <TabsContent value="approvals">
+              <StationApprovalRequestsManager />
+            </TabsContent>
+          )}
 
           {session.role === "super_admin" && (
             <TabsContent value="upgrades">
