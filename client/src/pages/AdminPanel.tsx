@@ -10,6 +10,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Badge } from "@/components/ui/badge";
 import { Switch } from "@/components/ui/switch";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { 
   LogOut, Radio, Music2, Megaphone, Users, Plus, Trash2, Edit, 
   RefreshCw, Shield, Settings, Disc, Sparkles, Check, X
@@ -245,6 +246,32 @@ function StationForm({ station, onSave, isPending }: { station?: Station; onSave
   const [logoUrl, setLogoUrl] = useState(station?.logoUrl || "");
   const [genre, setGenre] = useState(station?.genre || "");
   const [isActive, setIsActive] = useState(station?.isActive ?? true);
+  const [selectedApprovedId, setSelectedApprovedId] = useState<string>("");
+
+  const { data: approvedStations = [] } = useQuery<UserStation[]>({
+    queryKey: ["/api/admin/approved-user-stations"],
+    enabled: !station
+  });
+
+  const handleApprovedSelect = (value: string) => {
+    setSelectedApprovedId(value);
+    if (value === "manual") {
+      setName("");
+      setDescription("");
+      setLogoUrl("");
+      setGenre("");
+      setStreamUrl("");
+      return;
+    }
+    const selected = approvedStations.find(s => s.id.toString() === value);
+    if (selected) {
+      setName(selected.name);
+      setDescription(selected.description || "");
+      setLogoUrl(selected.logoUrl || "");
+      setGenre(selected.genre || "");
+      setStreamUrl("");
+    }
+  };
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -253,6 +280,27 @@ function StationForm({ station, onSave, isPending }: { station?: Station; onSave
 
   return (
     <form onSubmit={handleSubmit} className="space-y-4">
+      {!station && approvedStations.length > 0 && (
+        <div className="space-y-2">
+          <Label>Select Approved Station (optional)</Label>
+          <Select value={selectedApprovedId} onValueChange={handleApprovedSelect}>
+            <SelectTrigger data-testid="select-approved-station">
+              <SelectValue placeholder="Choose an approved station or enter manually" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="manual">Enter manually</SelectItem>
+              {approvedStations.map((s) => (
+                <SelectItem key={s.id} value={s.id.toString()}>
+                  {s.name} {s.genre ? `(${s.genre})` : ""}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+          <p className="text-xs text-muted-foreground">
+            Select a pre-approved station to auto-fill details, or enter manually
+          </p>
+        </div>
+      )}
       <div className="space-y-2">
         <Label>Name</Label>
         <Input value={name} onChange={(e) => setName(e.target.value)} required data-testid="input-station-name" />
