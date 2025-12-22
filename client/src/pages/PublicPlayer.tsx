@@ -1,16 +1,36 @@
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useMutation } from "@tanstack/react-query";
 import { LavaBackground } from "@/components/LavaBackground";
 import { StereoUnit } from "@/components/StereoUnit";
 import { AdBanner } from "@/components/AdBanner";
-import { Loader2 } from "lucide-react";
-import type { Station, UserStation } from "@shared/schema";
+import { queryClient, apiRequest } from "@/lib/queryClient";
+import { useToast } from "@/hooks/use-toast";
+import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
+import { Loader2, LogOut } from "lucide-react";
+import type { Station, UserStation, MemberDial } from "@shared/schema";
 import mascotImage from "@assets/588496392_1194040775959608_6497226853787014568_n_1766347733869.jpg";
 
+type MemberSession = {
+  id: number;
+  email: string;
+  displayName: string | null;
+  role: string;
+  isPremium: boolean;
+  isVerified: boolean;
+} | null;
+
 export type UnifiedStation = 
-  | (Station & { type: "external" })
-  | (UserStation & { type: "user" });
+  | (Station & { type: "external"; isSaved?: boolean })
+  | (UserStation & { type: "user"; isSaved?: boolean });
 
 export default function PublicPlayer() {
+  const { toast } = useToast();
+
+  const { data: member } = useQuery<MemberSession>({
+    queryKey: ["/api/members/me"],
+    retry: false
+  });
+
   const { data: externalStations = [], isLoading: loadingExternal, error: errorExternal } = useQuery<Station[]>({
     queryKey: ["/api/stations"],
   });
@@ -18,14 +38,99 @@ export default function PublicPlayer() {
   const { data: userStations = [], isLoading: loadingUser, error: errorUser } = useQuery<UserStation[]>({
     queryKey: ["/api/user-stations"],
   });
-  
+
+  const { data: publicUserStations = [] } = useQuery<UserStation[]>({
+    queryKey: ["/api/public/user-stations"],
+  });
+
+  const { data: memberDial = [] } = useQuery<MemberDial[]>({
+    queryKey: ["/api/members/dial"],
+    enabled: !!member,
+  });
+
+  const logoutMutation = useMutation({
+    mutationFn: async () => {
+      await apiRequest("POST", "/api/members/logout");
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/members/me"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/members/dial"] });
+      toast({ title: "Logged out successfully" });
+    }
+  });
+
+  const addToDialMutation = useMutation({
+    mutationFn: async ({ stationId, userStationId }: { stationId?: number; userStationId?: number }) => {
+      const res = await apiRequest("POST", "/api/members/dial", { stationId, userStationId });
+      return res.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/members/dial"] });
+      toast({ title: "Added to your dial" });
+    },
+    onError: (error: Error) => {
+      toast({ title: "Failed to save", description: error.message, variant: "destructive" });
+    }
+  });
+
+  const removeFromDialMutation = useMutation({
+    mutationFn: async (id: number) => {
+      await apiRequest("DELETE", `/api/members/dial/${id}`);
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/members/dial"] });
+      toast({ title: "Removed from your dial" });
+    }
+  });
+
   const isLoading = loadingExternal || loadingUser;
   const error = errorExternal || errorUser;
   
-  const stations: UnifiedStation[] = [
-    ...externalStations.filter(s => s.isActive).map(s => ({ ...s, type: "external" as const })),
-    ...userStations.filter(s => s.isActive).map(s => ({ ...s, type: "user" as const })),
+  const savedExternalIds = new Set(memberDial.filter(d => d.stationId).map(d => d.stationId));
+  const savedUserIds = new Set(memberDial.filter(d => d.userStationId).map(d => d.userStationId));
+
+  const allPublicUserStations = [
+    ...userStations.filter(s => s.isActive),
+    ...publicUserStations.filter(s => s.isActive && s.isPublic && s.approvalStatus === "approved")
   ];
+  const uniqueUserStations = allPublicUserStations.filter((station, index, self) =>
+    index === self.findIndex(s => s.id === station.id)
+  );
+
+  const stations: UnifiedStation[] = [
+    ...externalStations.filter(s => s.isActive).map(s => ({ 
+      ...s, 
+      type: "external" as const,
+      isSaved: savedExternalIds.has(s.id)
+    })),
+    ...uniqueUserStations.map(s => ({ 
+      ...s, 
+      type: "user" as const,
+      isSaved: savedUserIds.has(s.id)
+    })),
+  ];
+
+  const handleToggleSave = (station: UnifiedStation) => {
+    if (!member) {
+      toast({ title: "Please log in to save stations", variant: "destructive" });
+      return;
+    }
+
+    if (station.isSaved) {
+      const dialEntry = memberDial.find(d => 
+        station.type === "external" ? d.stationId === station.id : d.userStationId === station.id
+      );
+      if (dialEntry) {
+        removeFromDialMutation.mutate(dialEntry.id);
+      }
+    } else {
+      if (station.type === "external") {
+        addToDialMutation.mutate({ stationId: station.id });
+      } else {
+        addToDialMutation.mutate({ userStationId: station.id });
+      }
+    }
+  };
 
   return (
     <div className="min-h-screen flex flex-col relative overflow-hidden">
@@ -52,13 +157,42 @@ export default function PublicPlayer() {
         </div>
 
         <div className="flex items-center gap-4">
-          <a
-            href="/"
-            className="text-xs text-muted-foreground hover:text-foreground transition-colors"
-            data-testid="home-link"
-          >
-            Home
-          </a>
+          {member ? (
+            <div className="flex items-center gap-3">
+              <div className="text-right hidden sm:block">
+                <p className="text-sm text-lava-200">{member.displayName || member.email}</p>
+                {member.role === "producer" && (
+                  <Badge variant="outline" className="text-orange-400 border-orange-400 text-xs">Producer</Badge>
+                )}
+              </div>
+              {member.role === "producer" && (
+                <a
+                  href="/producer"
+                  className="text-xs text-orange-400 hover:text-orange-300 transition-colors"
+                  data-testid="producer-dashboard-link"
+                >
+                  Dashboard
+                </a>
+              )}
+              <Button
+                variant="ghost"
+                size="icon"
+                onClick={() => logoutMutation.mutate()}
+                disabled={logoutMutation.isPending}
+                data-testid="button-logout"
+              >
+                <LogOut className="h-4 w-4 text-muted-foreground" />
+              </Button>
+            </div>
+          ) : (
+            <a
+              href="/"
+              className="text-xs text-muted-foreground hover:text-foreground transition-colors"
+              data-testid="home-link"
+            >
+              Home
+            </a>
+          )}
         </div>
       </header>
 
@@ -79,7 +213,12 @@ export default function PublicPlayer() {
             </p>
           </div>
         ) : (
-          <StereoUnit stations={stations} isLoading={isLoading} />
+          <StereoUnit 
+            stations={stations} 
+            isLoading={isLoading} 
+            member={member}
+            onToggleSave={handleToggleSave}
+          />
         )}
       </main>
 

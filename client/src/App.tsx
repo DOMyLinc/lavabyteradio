@@ -6,6 +6,7 @@ import { TooltipProvider } from "@/components/ui/tooltip";
 import LandingPage from "@/pages/LandingPage";
 import PublicPlayer from "@/pages/PublicPlayer";
 import AdminPanel from "@/pages/AdminPanel";
+import ProducerDashboard from "@/pages/ProducerDashboard";
 import NotFound from "@/pages/not-found";
 
 function Router() {
@@ -14,6 +15,7 @@ function Router() {
       <Route path="/" component={LandingPage} />
       <Route path="/player" component={PublicPlayer} />
       <Route path="/admin" component={AdminPanel} />
+      <Route path="/producer" component={ProducerDashboard} />
       <Route component={NotFound} />
     </Switch>
   );

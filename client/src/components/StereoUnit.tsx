@@ -18,12 +18,23 @@ import { apiRequest, queryClient } from "@/lib/queryClient";
 import type { UnifiedStation } from "@/pages/PublicPlayer";
 import type { StationTrack, PlaybackHistory, InsertPlaybackHistory } from "@shared/schema";
 
+type MemberSession = {
+  id: number;
+  email: string;
+  displayName: string | null;
+  role: string;
+  isPremium: boolean;
+  isVerified: boolean;
+} | null;
+
 interface StereoUnitProps {
   stations: UnifiedStation[];
   isLoading: boolean;
+  member?: MemberSession;
+  onToggleSave?: (station: UnifiedStation) => void;
 }
 
-export function StereoUnit({ stations, isLoading }: StereoUnitProps) {
+export function StereoUnit({ stations, isLoading, member, onToggleSave }: StereoUnitProps) {
   const [isPoweredOn, setIsPoweredOn] = useState(true);
   const [isPlaying, setIsPlaying] = useState(false);
   const [isStreamLoading, setIsStreamLoading] = useState(false);
