@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useRef } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { queryClient, apiRequest } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
@@ -161,8 +161,8 @@ function TrackForm({ track, onSave, isPending }: { track?: StationTrack; onSave:
   const [isUploading, setIsUploading] = useState(false);
   const [uploadedFileName, setUploadedFileName] = useState("");
   const [uploadedMediaUrl, setUploadedMediaUrl] = useState("");
-  const [pendingObjectPath, setPendingObjectPath] = useState<string | null>(null);
   const [validationError, setValidationError] = useState("");
+  const pendingObjectPathRef = useRef<string | null>(null);
 
   const handleModeSwitch = (mode: "upload" | "url") => {
     setUploadMode(mode);
@@ -219,7 +219,7 @@ function TrackForm({ track, onSave, isPending }: { track?: StationTrack; onSave:
       })
     });
     const data = await res.json();
-    setPendingObjectPath(data.objectPath);
+    pendingObjectPathRef.current = data.objectPath;
     return {
       method: "PUT" as const,
       url: data.uploadURL as string,
@@ -232,9 +232,9 @@ function TrackForm({ track, onSave, isPending }: { track?: StationTrack; onSave:
     if (result.successful && result.successful.length > 0) {
       const uploadedFile = result.successful[0];
       setUploadedFileName(uploadedFile.name || "audio file");
-      if (pendingObjectPath) {
-        setUploadedMediaUrl(pendingObjectPath);
-        setPendingObjectPath(null);
+      if (pendingObjectPathRef.current) {
+        setUploadedMediaUrl(pendingObjectPathRef.current);
+        pendingObjectPathRef.current = null;
         setValidationError("");
       }
     }
