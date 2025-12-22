@@ -143,6 +143,17 @@ export async function registerRoutes(
     }
   });
 
+  // Get approved user stations (for admin to select when creating external stations)
+  app.get("/api/admin/approved-user-stations", isAdminAuthenticated, async (req, res) => {
+    try {
+      const stations = await storage.getPublicUserStations();
+      res.json(stations);
+    } catch (error) {
+      console.error("Failed to fetch approved user stations:", error);
+      res.status(500).json({ error: "Failed to fetch approved user stations" });
+    }
+  });
+
   // Get single user station
   app.get("/api/user-stations/:id", async (req, res) => {
     try {
