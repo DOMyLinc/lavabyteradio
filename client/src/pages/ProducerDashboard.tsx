@@ -144,15 +144,23 @@ function StationForm({ station, onSave, isPending }: { station?: UserStation; on
   );
 }
 
+const GENRE_OPTIONS = [
+  "Pop", "Rock", "Hip Hop", "R&B", "Electronic", "Jazz", "Classical", 
+  "Country", "Reggae", "Latin", "Folk", "Blues", "Metal", "Punk",
+  "Indie", "Soul", "Funk", "Ambient", "Lo-fi", "World", "Other"
+];
+
 function TrackForm({ track, onSave, isPending }: { track?: StationTrack; onSave: (data: Partial<StationTrack>) => void; isPending: boolean }) {
   const [title, setTitle] = useState(track?.title || "");
   const [artist, setArtist] = useState(track?.artist || "");
   const [mediaUrl, setMediaUrl] = useState(track?.mediaUrl || "");
   const [mediaType, setMediaType] = useState<string>(track?.mediaType || "audio");
-  const [duration, setDuration] = useState(track?.duration?.toString() || "");
+  const [genre, setGenre] = useState(track?.genre || "");
+  const [customGenre, setCustomGenre] = useState("");
   const [uploadMode, setUploadMode] = useState<"upload" | "url">("upload");
   const [isUploading, setIsUploading] = useState(false);
   const [uploadedFileName, setUploadedFileName] = useState("");
+  const [uploadedMediaUrl, setUploadedMediaUrl] = useState("");
   const [pendingObjectPath, setPendingObjectPath] = useState<string | null>(null);
   const [validationError, setValidationError] = useState("");
 
@@ -160,13 +168,23 @@ function TrackForm({ track, onSave, isPending }: { track?: StationTrack; onSave:
     setUploadMode(mode);
     setMediaUrl("");
     setUploadedFileName("");
-    setPendingObjectPath(null);
+    setUploadedMediaUrl("");
     setValidationError("");
   };
 
+  const handleGenreChange = (value: string) => {
+    setGenre(value);
+    if (value !== "Other") {
+      setCustomGenre("");
+    }
+  };
+
+  const finalMediaUrl = uploadMode === "upload" ? uploadedMediaUrl : mediaUrl;
+  const finalGenre = genre === "Other" ? customGenre : genre;
+
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!mediaUrl.trim()) {
+    if (!finalMediaUrl.trim()) {
       setValidationError(uploadMode === "upload" ? "Please upload an audio file first" : "Please enter a valid URL");
       return;
     }
@@ -174,9 +192,9 @@ function TrackForm({ track, onSave, isPending }: { track?: StationTrack; onSave:
     onSave({
       title,
       artist: artist || undefined,
-      mediaUrl,
+      mediaUrl: finalMediaUrl,
       mediaType,
-      duration: duration ? parseInt(duration) : undefined
+      genre: finalGenre || undefined
     });
   };
 
@@ -209,13 +227,16 @@ function TrackForm({ track, onSave, isPending }: { track?: StationTrack; onSave:
     };
   };
 
-  const handleUploadComplete = (result: { successful?: Array<unknown> }) => {
+  const handleUploadComplete = (result: { successful?: Array<{ name?: string; response?: { body?: string } }> }) => {
     setIsUploading(false);
-    if (result.successful && result.successful.length > 0 && pendingObjectPath) {
-      const uploadedFile = result.successful[0] as { name?: string };
+    if (result.successful && result.successful.length > 0) {
+      const uploadedFile = result.successful[0];
       setUploadedFileName(uploadedFile.name || "audio file");
-      setMediaUrl(pendingObjectPath);
-      setPendingObjectPath(null);
+      if (pendingObjectPath) {
+        setUploadedMediaUrl(pendingObjectPath);
+        setPendingObjectPath(null);
+        setValidationError("");
+      }
     }
   };
 
@@ -288,9 +309,9 @@ function TrackForm({ track, onSave, isPending }: { track?: StationTrack; onSave:
                 Uploaded: {uploadedFileName}
               </p>
             )}
-            {mediaUrl && uploadMode === "upload" && (
+            {uploadedMediaUrl && (
               <p className="text-xs text-muted-foreground truncate">
-                Path: {mediaUrl}
+                Path: {uploadedMediaUrl}
               </p>
             )}
             <p className="text-xs text-muted-foreground">
@@ -320,8 +341,27 @@ function TrackForm({ track, onSave, isPending }: { track?: StationTrack; onSave:
         </select>
       </div>
       <div className="space-y-2">
-        <Label>Duration (seconds)</Label>
-        <Input type="number" value={duration} onChange={(e) => setDuration(e.target.value)} placeholder="180" data-testid="input-producer-track-duration" />
+        <Label>Genre</Label>
+        <select
+          value={genre}
+          onChange={(e) => handleGenreChange(e.target.value)}
+          className="w-full h-9 rounded-md border border-slate-600 bg-slate-800 px-3 text-sm text-white"
+          data-testid="select-producer-track-genre"
+        >
+          <option value="">Select a genre...</option>
+          {GENRE_OPTIONS.map((g) => (
+            <option key={g} value={g}>{g}</option>
+          ))}
+        </select>
+        {genre === "Other" && (
+          <Input
+            value={customGenre}
+            onChange={(e) => setCustomGenre(e.target.value)}
+            placeholder="Enter your genre..."
+            className="mt-2"
+            data-testid="input-producer-track-custom-genre"
+          />
+        )}
       </div>
       <Tooltip>
         <TooltipTrigger asChild>

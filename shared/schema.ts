@@ -70,7 +70,7 @@ export const stationTracks = pgTable("station_tracks", {
   stationId: integer("station_id").notNull().references(() => userStations.id, { onDelete: "cascade" }),
   title: text("title").notNull(),
   artist: text("artist"),
-  duration: integer("duration"), // Duration in seconds
+  genre: text("genre"), // Track genre
   mediaUrl: text("media_url").notNull(), // Object storage path
   mediaType: text("media_type").notNull(), // "audio" or "video"
   sortOrder: integer("sort_order").default(0).notNull(),
