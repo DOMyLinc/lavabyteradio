@@ -1414,6 +1414,112 @@ function AdminUserForm({ admin, onSave, isPending }: { admin?: AdminUser; onSave
   );
 }
 
+function SystemManager() {
+  const { toast } = useToast();
+  const [isUpdating, setIsUpdating] = useState(false);
+  const [updateLogs, setUpdateLogs] = useState<string[]>([]);
+
+  const { data: status, isLoading, refetch } = useQuery({
+    queryKey: ["/api/admin/system/update-status"],
+  });
+
+  const updateMutation = useMutation({
+    mutationFn: async () => {
+      setIsUpdating(true);
+      setUpdateLogs(["Starting update process..."]);
+      const res = await apiRequest("POST", "/api/admin/system/update");
+      return res.json();
+    },
+    onSuccess: (data) => {
+      setUpdateLogs(prev => [...prev, "Update successful!", data.message]);
+      toast({ title: "Update successful", description: "The system will restart in a few seconds." });
+      setTimeout(() => {
+        window.location.reload();
+      }, 5000);
+    },
+    onError: (error: Error) => {
+      setIsUpdating(false);
+      setUpdateLogs(prev => [...prev, `Update failed: ${error.message}`]);
+      toast({ title: "Update failed", description: error.message, variant: "destructive" });
+    }
+  });
+
+  return (
+    <Card className="bg-slate-800 border-slate-700">
+      <CardHeader>
+        <CardTitle className="flex items-center gap-2">
+          <RefreshCw className={`h-5 w-5 text-orange-400 ${isLoading ? 'animate-spin' : ''}`} />
+          System Update
+        </CardTitle>
+        <CardDescription>Manage application updates directly from GitHub</CardDescription>
+      </CardHeader>
+      <CardContent className="space-y-6">
+        {isLoading ? (
+          <div className="text-center py-8 text-slate-400">Checking for updates...</div>
+        ) : (
+          <div className="space-y-4">
+            <div className="flex items-center justify-between p-4 bg-slate-700/50 rounded-lg">
+              <div className="space-y-1">
+                <p className="text-sm font-medium text-slate-300">Current Version</p>
+                <code className="text-xs bg-slate-800 px-2 py-1 rounded">{status?.localVersion || 'Unknown'}</code>
+              </div>
+              <div className="space-y-1 text-right">
+                <p className="text-sm font-medium text-slate-300">Remote Version</p>
+                <code className="text-xs bg-slate-800 px-2 py-1 rounded">{status?.remoteVersion || 'Unknown'}</code>
+              </div>
+            </div>
+
+            {status?.canUpdate ? (
+              <div className="p-4 border border-orange-500/30 bg-orange-500/10 rounded-lg space-y-3">
+                <div className="flex items-center gap-2 text-orange-400">
+                  <Sparkles className="h-5 w-5" />
+                  <p className="font-medium">New update available!</p>
+                </div>
+                <p className="text-sm text-slate-300">
+                  There are {status.commitsBehind} new commit(s) available on GitHub.
+                </p>
+                <Button 
+                  onClick={() => updateMutation.mutate()} 
+                  disabled={isUpdating}
+                  className="w-full bg-orange-500 hover:bg-orange-600 text-white"
+                >
+                  {isUpdating ? (
+                    <>
+                      <RefreshCw className="h-4 w-4 mr-2 animate-spin" />
+                      Updating...
+                    </>
+                  ) : (
+                    "Update Now"
+                  )}
+                </Button>
+              </div>
+            ) : (
+              <div className="p-4 border border-green-500/30 bg-green-500/10 rounded-lg flex items-center gap-3">
+                <Check className="h-5 w-5 text-green-400" />
+                <p className="text-sm text-slate-300">Your system is up to date.</p>
+                <Button variant="ghost" size="sm" onClick={() => refetch()} className="ml-auto">
+                  Check Again
+                </Button>
+              </div>
+            )}
+
+            {updateLogs.length > 0 && (
+              <div className="space-y-2">
+                <p className="text-xs font-medium text-slate-400 uppercase tracking-wider">Update Progress</p>
+                <div className="bg-slate-950 p-3 rounded-lg font-mono text-xs text-slate-300 max-h-40 overflow-y-auto space-y-1 border border-slate-700">
+                  {updateLogs.map((log, i) => (
+                    <div key={i}>{log}</div>
+                  ))}
+                </div>
+              </div>
+            )}
+          </div>
+        )}
+      </CardContent>
+    </Card>
+  );
+}
+
 export default function AdminPanel() {
   const { toast } = useToast();
 
@@ -1508,6 +1614,12 @@ export default function AdminPanel() {
                 <span className="hidden sm:inline">Admins</span>
               </TabsTrigger>
             )}
+            {session.role === "super_admin" && (
+              <TabsTrigger value="system" className="flex items-center gap-1" data-testid="tab-system">
+                <RefreshCw className="h-4 w-4" />
+                <span className="hidden sm:inline">System</span>
+              </TabsTrigger>
+            )}
           </TabsList>
 
           <TabsContent value="stations">
@@ -1541,6 +1653,12 @@ export default function AdminPanel() {
           {session.role === "super_admin" && (
             <TabsContent value="admins">
               <AdminUsersManager />
+            </TabsContent>
+          )}
+
+          {session.role === "super_admin" && (
+            <TabsContent value="system">
+              <SystemManager />
             </TabsContent>
           )}
         </Tabs>

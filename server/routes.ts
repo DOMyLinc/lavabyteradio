@@ -13,6 +13,11 @@ import {
 } from "@shared/schema";
 import { z } from "zod";
 
+import { exec } from "child_process";
+import { promisify } from "util";
+
+const execAsync = promisify(exec);
+
 declare module "express-session" {
   interface SessionData {
     adminId?: number;
@@ -1260,6 +1265,72 @@ export async function registerRoutes(
     } catch (error) {
       console.error("Failed to review upgrade request:", error);
       res.status(500).json({ error: "Failed to review" });
+    }
+  });
+
+  // =====================
+  // SYSTEM UPDATES (Admin only)
+  // =====================
+
+  // Check for updates
+  app.get("/api/admin/system/update-status", isAdminAuthenticated, async (req, res) => {
+    try {
+      const currentAdmin = await storage.getAdminUser(req.session.adminId!);
+      if (!currentAdmin || currentAdmin.role !== "super_admin") {
+        return res.status(403).json({ error: "Super admin access required" });
+      }
+
+      await execAsync("git fetch origin");
+      const { stdout } = await execAsync("git rev-list --count HEAD..origin/main");
+      const ahead = parseInt(stdout.trim());
+      
+      const { stdout: localHash } = await execAsync("git rev-parse --short HEAD");
+      const { stdout: remoteHash } = await execAsync("git rev-parse --short origin/main");
+      
+      res.json({
+        canUpdate: ahead > 0,
+        commitsBehind: ahead,
+        localVersion: localHash.trim(),
+        remoteVersion: remoteHash.trim(),
+        lastChecked: new Date().toISOString()
+      });
+    } catch (error: any) {
+      console.error("Failed to check for updates:", error);
+      res.status(500).json({ error: "Failed to check for updates", details: error.message });
+    }
+  });
+
+  // Perform update
+  app.post("/api/admin/system/update", isAdminAuthenticated, async (req, res) => {
+    try {
+      const currentAdmin = await storage.getAdminUser(req.session.adminId!);
+      if (!currentAdmin || currentAdmin.role !== "super_admin") {
+        return res.status(403).json({ error: "Super admin access required" });
+      }
+
+      // 1. Pull changes
+      console.log("Starting system update: pulling changes...");
+      await execAsync("git pull origin main");
+      
+      // 2. Install dependencies
+      console.log("Installing dependencies...");
+      await execAsync("npm install");
+      
+      // 3. Rebuild frontend
+      console.log("Building project...");
+      await execAsync("npm run build");
+      
+      res.json({ message: "Update completed successfully. The system will now restart." });
+      
+      // 4. Restart server
+      console.log("Update finished. Restarting process...");
+      setTimeout(() => {
+        process.exit(0);
+      }, 1000);
+      
+    } catch (error: any) {
+      console.error("Update failed:", error);
+      res.status(500).json({ error: "Update failed", details: error.message });
     }
   });
 
